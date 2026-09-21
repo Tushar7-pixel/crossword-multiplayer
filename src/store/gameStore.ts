@@ -8,6 +8,7 @@ interface GameStore extends GameState {
     updatePlayerScore: (playerId: string, points: number) => void;
     markWordFound: (word: string, playerId: string, cells: CellCoord[]) => void;
     resetSession: () => void;
+    generateNewRound: (roundNumber: number, totalRounds?: number) => void; // <--- NEW
 }
 
 const WORD_BANK = ['REACT', 'WEBRTC', 'ZUSTAND', 'VITE', 'PEERJS', 'SOCKET', 'NODE', 'TYPESCRIPT'];
@@ -20,27 +21,29 @@ const initialState: GameState = {
     board: [],
     foundWords: {},
     foundCells: {},
-    wordsToFind: WORD_BANK, // Keep only this one
+    wordsToFind: WORD_BANK,
 };
 
 export const useGameStore = create<GameStore>((set) => ({
     ...initialState,
 
-    setGameState: (newState) => set((state) => {
-        if (newState.status === 'playing' || (newState.currentRound && newState.currentRound > state.currentRound)) {
-            const shuffledWords = [...WORD_BANK].sort(() => 0.5 - Math.random()).slice(0, 4);
-            const { grid, placedWords } = generateGrid(shuffledWords, 10);
+    // 1. Dumb state merger (Peers use this to sync)
+    setGameState: (newState) => set((state) => ({ ...state, ...newState })),
 
-            return {
-                ...state,
-                ...newState,
-                board: grid,
-                wordsToFind: placedWords,
-                foundWords: {},
-                foundCells: {}
-            };
-        }
-        return { ...state, ...newState };
+    // 2. Explicit round generator (Only Host calls this)
+    generateNewRound: (roundNumber, totalRounds) => set((state) => {
+        const shuffledWords = [...WORD_BANK].sort(() => 0.5 - Math.random()).slice(0, 4);
+        const { grid, placedWords } = generateGrid(shuffledWords, 10);
+
+        return {
+            status: 'playing',
+            currentRound: roundNumber,
+            totalRounds: totalRounds || state.totalRounds,
+            board: grid,
+            wordsToFind: placedWords,
+            foundWords: {},
+            foundCells: {}
+        };
     }),
 
     addPlayer: (player) => set((state) => ({

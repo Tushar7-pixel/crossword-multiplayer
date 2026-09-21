@@ -31,7 +31,6 @@ export const Lobby: React.FC<LobbyProps> = ({ network }) => {
 
   const handleOffline = () => {
     if (!name.trim()) return alert("Please enter your name");
-    // Setup a local-only state
     useGameStore.getState().addPlayer({
       id: "local-1",
       name,
@@ -39,11 +38,13 @@ export const Lobby: React.FC<LobbyProps> = ({ network }) => {
       score: 0,
       isHost: true,
     });
-    setGameState({ status: "playing" });
+    // Use the explicit generator for offline mode
+    useGameStore.getState().generateNewRound(1, rounds);
   };
 
   const handleStartGame = () => {
-    setGameState({ status: "playing", totalRounds: rounds });
+    // The Host explicitly generates Round 1 before broadcasting
+    useGameStore.getState().generateNewRound(1, rounds);
     broadcastState();
   };
 
