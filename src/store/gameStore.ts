@@ -9,6 +9,7 @@ interface GameStore extends GameState {
     markWordFound: (word: string, playerId: string, cells: CellCoord[]) => void;
     resetSession: () => void;
     generateNewRound: (roundNumber: number, totalRounds?: number) => void; // <--- NEW
+    removePlayer: (playerId: string) => void;
 }
 
 const WORD_BANK = ['REACT', 'WEBRTC', 'ZUSTAND', 'VITE', 'PEERJS', 'SOCKET', 'NODE', 'TYPESCRIPT'];
@@ -73,5 +74,10 @@ export const useGameStore = create<GameStore>((set) => ({
         };
     }),
 
+    removePlayer: (playerId) => set((state) => {
+        const newPlayers = { ...state.players };
+        delete newPlayers[playerId];
+        return { players: newPlayers };
+    }),
     resetSession: () => set(initialState),
 }));

@@ -13,35 +13,90 @@ export const GameBoard = ({
     useGameStore();
   const playerList = Object.values(players);
 
-  const [selectionCoords, setSelectionCoords] = useState<CellCoord[]>([]);
-  const [isDragging, setIsDragging] = useState(false);
+  // const [selectionCoords, setSelectionCoords] = useState<CellCoord[]>([]);
+  // const [isDragging, setIsDragging] = useState(false);
 
   // Derive the current word string from the selected coordinates
+
+  // const handleMouseDown = (y: number, x: number) => {
+  //   setIsDragging(true);
+  //   setSelectionCoords([{ y, x }]);
+  // };
+
+  // const handleMouseEnter = (y: number, x: number) => {
+  //   if (!isDragging) return;
+  //   if (!selectionCoords.some((c) => c.y === y && c.x === x)) {
+  //     setSelectionCoords((prev) => [...prev, { y, x }]);
+  //   }
+  // };
+
+  // const handleMouseUp = () => {
+  //   setIsDragging(false);
+  //   if (wordsToFind.includes(currentWord) && !foundWords[currentWord]) {
+  //     network.sendToHost({
+  //       type: "WORD_FOUND",
+  //       payload: { word: currentWord, cells: selectionCoords },
+  //     });
+  //   }
+  //   setSelectionCoords([]);
+  // };
+  // /--------------------------------------
+  const [startCell, setStartCell] = useState<CellCoord | null>(null);
+  const [selectionCoords, setSelectionCoords] = useState<CellCoord[]>([]);
+  const [isDragging, setIsDragging] = useState(false);
   const currentWord = selectionCoords.map((c) => board[c.y][c.x]).join("");
 
   const handleMouseDown = (y: number, x: number) => {
     setIsDragging(true);
-    setSelectionCoords([{ y, x }]);
+    const initial = { y, x };
+    setStartCell(initial);
+    setSelectionCoords([initial]);
   };
 
   const handleMouseEnter = (y: number, x: number) => {
-    if (!isDragging) return;
-    if (!selectionCoords.some((c) => c.y === y && c.x === x)) {
-      setSelectionCoords((prev) => [...prev, { y, x }]);
+    if (!isDragging || !startCell) return;
+
+    const dy = y - startCell.y;
+    const dx = x - startCell.x;
+
+    const absDy = Math.abs(dy);
+    const absDx = Math.abs(dx);
+
+    // Check if target cell lies on a valid straight path (horizontal, vertical, or 45° diagonal)
+    const isHorizontal = dy === 0;
+    const isVertical = dx === 0;
+    const isDiagonal = absDx === absDy;
+
+    if (isHorizontal || isVertical || isDiagonal) {
+      const steps = Math.max(absDx, absDy);
+      const stepY = dy === 0 ? 0 : dy / absDy;
+      const stepX = dx === 0 ? 0 : dx / absDx;
+
+      const newPath: CellCoord[] = [];
+      for (let i = 0; i <= steps; i++) {
+        newPath.push({
+          y: startCell.y + i * stepY,
+          x: startCell.x + i * stepX,
+        });
+      }
+      setSelectionCoords(newPath);
     }
   };
 
   const handleMouseUp = () => {
+    if (!isDragging) return;
     setIsDragging(false);
+
     if (wordsToFind.includes(currentWord) && !foundWords[currentWord]) {
       network.sendToHost({
         type: "WORD_FOUND",
         payload: { word: currentWord, cells: selectionCoords },
       });
     }
+
+    setStartCell(null);
     setSelectionCoords([]);
   };
-
   return (
     <CursorOverlay network={network}>
       <div

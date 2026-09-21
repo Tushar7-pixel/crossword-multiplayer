@@ -1,15 +1,15 @@
 import React, { useState } from "react";
 import { useGameStore } from "../../store/gameStore";
-import { Users, Play, Copy, Wifi, WifiOff } from "lucide-react";
-
+import { Users, Play, Copy, Wifi, WifiOff, UserMinus } from "lucide-react";
 // We type the props based on the return type of your network hook
 interface LobbyProps {
   network: any; // In a strict TS setup, import the ReturnType of useGameNetwork
 }
 
 export const Lobby: React.FC<LobbyProps> = ({ network }) => {
-  const { peerId, isHost, hostGame, joinGame, broadcastState } = network;
-  const { players, setGameState } = useGameStore();
+  const { peerId, isHost, hostGame, joinGame, broadcastState, kickPlayer } =
+    network;
+  const { players } = useGameStore();
 
   const [name, setName] = useState("");
   const [roomCode, setRoomCode] = useState("");
@@ -99,10 +99,21 @@ export const Lobby: React.FC<LobbyProps> = ({ network }) => {
                   style={{ backgroundColor: p.color }}
                 />
                 <span className="font-medium">{p.name}</span>
-                {p.isHost && (
+
+                {p.isHost ? (
                   <span className="ml-auto text-xs bg-indigo-500 px-2 py-1 rounded-full">
                     Host
                   </span>
+                ) : (
+                  isHost && (
+                    <button
+                      onClick={() => kickPlayer(p.id)}
+                      title="Kick player"
+                      className="ml-auto text-slate-400 hover:text-red-400 p-1 transition-colors"
+                    >
+                      <UserMinus size={16} />
+                    </button>
+                  )
                 )}
               </div>
             ))}

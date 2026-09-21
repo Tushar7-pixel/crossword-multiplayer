@@ -218,6 +218,28 @@ export const useGameNetwork = () => {
             hostConnectionRef.current.send(action);
         }
     };
+    const kickPlayer = (playerId: string) => {
+        if (!isHostRef.current) return;
 
-    return { peerId, isHost, hostGame, joinGame, sendToHost, broadcastState };
+        // 1. Find and close peer connection
+        const conn = connectionsRef.current.find((c) => c.peer === playerId);
+        if (conn) {
+            conn.close();
+            connectionsRef.current = connectionsRef.current.filter((c) => c.peer !== playerId);
+        }
+
+        // 2. Remove from Zustand store
+        useGameStore.getState().removePlayer(playerId);
+
+        // 3. Broadcast updated roster to remaining players
+        broadcastState();
+
+        // 4. Remove cursor
+        window.dispatchEvent(
+            new CustomEvent('peer-cursor-move', {
+                detail: { userId: playerId, x: -100, y: -100 },
+            })
+        );
+    };
+    return { peerId, isHost, hostGame, joinGame, sendToHost, broadcastState, kickPlayer };
 };
