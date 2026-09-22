@@ -3,17 +3,34 @@ import { useGameStore } from "../../store/gameStore";
 import { CursorOverlay } from "./CursorOverlay";
 import type { CellCoord } from "../../types/game";
 import { useGameNetwork } from "../../hooks/useGameNetwork";
+import { THEMES } from "../../lib/themeStyles";
+import { Sparkles, Palette } from "lucide-react";
 
 export const GameBoard = ({
   network,
 }: {
   network: ReturnType<typeof useGameNetwork>;
 }) => {
-  const { players, foundCells, wordsToFind, foundWords, board } =
-    useGameStore();
+  const {
+    players,
+    foundCells,
+    wordsToFind,
+    goldenWord,
+    foundWords,
+    foundLines,
+    board,
+    theme,
+    currentRound,
+    totalRounds,
+    localTheme, // <-- Player's local preference
+    setLocalTheme, // <-- Local setter
+    categories, // <-- Multiple categories
+  } = useGameStore();
+  // Prefer local theme if chosen, otherwise fall back to host's room theme
+  const activeThemeKey = localTheme || theme;
+  const themeStyle = THEMES[theme] || THEMES.neon;
   const playerList = Object.values(players);
 
-  // Identify current player's color
   const myPlayer =
     players[network.peerId] ||
     Object.values(players).find((p) => p.isHost && network.isHost) ||
@@ -30,7 +47,17 @@ export const GameBoard = ({
     .map((c) => board[c.y]?.[c.x] || "")
     .join("");
 
-  // --- Unified Selection Handlers ---
+  // const cycleTheme = () => {
+  //   const list: (keyof typeof THEMES)[] = ["neon", "farm", "classic"];
+  //   const nextTheme = list[(list.indexOf(theme) + 1) % list.length];
+  //   network.broadcastSettingsChange({ theme: nextTheme });
+  // };
+  // Toggles theme ONLY on this player's device
+  const cycleMyTheme = () => {
+    const list: (keyof typeof THEMES)[] = ["neon", "farm", "classic"];
+    const nextTheme = list[(list.indexOf(activeThemeKey) + 1) % list.length];
+    setLocalTheme(nextTheme);
+  };
 
   const handleSelectStart = (y: number, x: number) => {
     setIsDragging(true);
@@ -47,7 +74,6 @@ export const GameBoard = ({
     const absDy = Math.abs(dy);
     const absDx = Math.abs(dx);
 
-    // Validate straight line: horizontal, vertical, or 45-degree diagonal
     const isHorizontal = dy === 0;
     const isVertical = dx === 0;
     const isDiagonal = absDx === absDy;
@@ -83,12 +109,9 @@ export const GameBoard = ({
     setSelectionCoords([]);
   };
 
-  // --- Mobile Touch Event Handlers ---
-
   const handleTouchStart = (e: React.TouchEvent) => {
     const touch = e.touches[0];
     if (!touch) return;
-
     const target = document.elementFromPoint(touch.clientX, touch.clientY);
     const cellEl = target?.closest("[data-cell]");
     if (cellEl) {
@@ -102,7 +125,6 @@ export const GameBoard = ({
     if (!isDragging) return;
     const touch = e.touches[0];
     if (!touch) return;
-
     const target = document.elementFromPoint(touch.clientX, touch.clientY);
     const cellEl = target?.closest("[data-cell]");
     if (cellEl) {
@@ -115,46 +137,101 @@ export const GameBoard = ({
   return (
     <CursorOverlay network={network}>
       <div
-        className="flex flex-col items-center min-h-screen bg-slate-900 text-white p-4 select-none touch-none"
+        className={`flex flex-col items-center min-h-screen ${themeStyle.bg} transition-colors duration-500 p-4 select-none touch-none ${themeStyle.textColor}`}
         onMouseUp={handleSelectEnd}
         onMouseLeave={handleSelectEnd}
       >
-        {/* Header / Current Selection */}
-        <div className="mb-4 h-10 flex items-center justify-center text-3xl font-black text-indigo-400 tracking-widest">
-          {currentWord || "Find a word!"}
+        {/* Top Bar: Round & Category Tracker + Theme Switcher */}
+        {/* Top Bar */}
+        <div className="w-full max-w-2xl flex items-center justify-between mb-2 px-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-xs uppercase font-extrabold tracking-wider bg-black/30 backdrop-blur-md px-3 py-1 rounded-full border border-white/10">
+              Round {currentRound} / {totalRounds}
+            </span>
+            <span className="text-xs uppercase font-bold text-indigo-300 bg-indigo-950/60 px-3 py-1 rounded-full border border-indigo-700/50">
+              {categories.join(" + ")}
+            </span>
+          </div>
+
+          <button
+            onClick={cycleMyTheme}
+            className="flex items-center gap-1.5 text-xs font-bold px-3 py-1 rounded-full bg-white/20 hover:bg-white/30 backdrop-blur-md transition-all shadow-sm"
+          >
+            <Palette size={14} /> My Theme: {themeStyle.name}
+          </button>
         </div>
 
-        {/* Game Grid Container */}
+        {/* Selected Word Display */}
+        <div
+          className={`mb-3 h-8 flex items-center justify-center text-2xl sm:text-3xl tracking-widest ${themeStyle.titleColor}`}
+        >
+          {currentWord || "SELECT A WORD"}
+        </div>
+
+        {/* Board Container */}
         <div
           ref={gridContainerRef}
           onTouchStart={handleTouchStart}
           onTouchMove={handleTouchMove}
           onTouchEnd={handleSelectEnd}
-          className="relative bg-slate-800 p-4 sm:p-6 rounded-2xl shadow-2xl mb-6 border border-slate-700 select-none"
+          className={`relative ${themeStyle.cardBg} p-4 sm:p-6 rounded-3xl border-2 ${themeStyle.border} mb-5 select-none transition-all duration-300`}
         >
-          {/* Dynamic Thin Connecting Line for Selection */}
-          {selectionCoords.length > 1 && (
-            <svg
-              className="absolute inset-0 w-full h-full pointer-events-none z-20 p-4 sm:p-6"
-              viewBox={`0 0 ${gridSize * 100} ${gridSize * 100}`}
-              preserveAspectRatio="none"
-            >
+          {/* SVG Layer: Renders Both Active Drag Line and All Found Strikethroughs */}
+          <svg
+            className="absolute inset-0 w-full h-full pointer-events-none z-20 p-4 sm:p-6"
+            viewBox={`0 0 ${gridSize * 100} ${gridSize * 100}`}
+            preserveAspectRatio="none"
+          >
+            {/* 1. Persistent Strikethrough Lines for Discovered Words */}
+            {foundLines.map((line) => {
+              const finder = players[line.playerId];
+              const lineColor = finder?.color || "#3b82f6";
+
+              return (
+                <line
+                  key={line.word}
+                  x1={line.start.x * 100 + 50}
+                  y1={line.start.y * 100 + 50}
+                  x2={line.end.x * 100 + 50}
+                  y2={line.end.y * 100 + 50}
+                  stroke={lineColor}
+                  strokeWidth="28"
+                  strokeLinecap="round"
+                  opacity={themeStyle.strikethroughOpacity}
+                  style={
+                    themeStyle.glow
+                      ? {
+                          filter: `drop-shadow(0 0 8px ${lineColor}) drop-shadow(0 0 16px ${lineColor})`,
+                        }
+                      : { filter: `drop-shadow(0 2px 4px rgba(0,0,0,0.25))` }
+                  }
+                />
+              );
+            })}
+
+            {/* 2. Real-Time Active Dragging Line */}
+            {selectionCoords.length > 1 && (
               <line
                 x1={selectionCoords[0].x * 100 + 50}
                 y1={selectionCoords[0].y * 100 + 50}
                 x2={selectionCoords[selectionCoords.length - 1].x * 100 + 50}
                 y2={selectionCoords[selectionCoords.length - 1].y * 100 + 50}
                 stroke={myColor}
-                strokeWidth="12"
+                strokeWidth="20"
                 strokeLinecap="round"
-                opacity="0.85"
+                opacity="0.8"
+                style={
+                  themeStyle.glow
+                    ? { filter: `drop-shadow(0 0 10px ${myColor})` }
+                    : {}
+                }
               />
-            </svg>
-          )}
+            )}
+          </svg>
 
-          {/* Grid Cells */}
+          {/* Letter Grid */}
           <div
-            className="grid gap-1.5 sm:gap-2"
+            className="grid gap-1.5 sm:gap-2.5 relative z-10"
             style={{
               gridTemplateColumns: `repeat(${gridSize}, minmax(0, 1fr))`,
             }}
@@ -163,35 +240,16 @@ export const GameBoard = ({
               row.map((letter: string, x: number) => {
                 const cellKey = `${y}-${x}`;
                 const ownerId = foundCells[cellKey];
-                const owner = ownerId ? players[ownerId] : null;
                 const isCurrentlySelected = selectionCoords.some(
                   (c) => c.y === y && c.x === x,
                 );
 
-                let cellStyle: React.CSSProperties = {};
-                let cellClass =
-                  "w-8 h-8 sm:w-11 sm:h-11 flex items-center justify-center rounded-lg text-lg sm:text-2xl font-bold cursor-pointer transition-all duration-150 ";
+                let cellClass = `w-8 h-8 sm:w-11 sm:h-11 flex items-center justify-center rounded-xl text-lg sm:text-2xl font-black cursor-pointer transition-all duration-150 ${themeStyle.cellDefault} ${themeStyle.cellHover} `;
 
-                if (owner) {
-                  // Cell already claimed by a player
-                  cellStyle = {
-                    backgroundColor: owner.color,
-                    color: "#fff",
-                    boxShadow: `0 0 12px ${owner.color}90`,
-                  };
-                  cellClass += "scale-105 z-10";
-                } else if (isCurrentlySelected) {
-                  // Currently being dragged: highlighted with user's assigned color
-                  cellStyle = {
-                    backgroundColor: `${myColor}33`,
-                    border: `2px solid ${myColor}`,
-                    color: "#fff",
-                  };
-                  cellClass += "scale-105 z-10";
-                } else {
-                  // Default available cell
-                  cellClass +=
-                    "bg-slate-700/80 hover:bg-slate-600 text-slate-200";
+                if (isCurrentlySelected) {
+                  cellClass += "scale-110 shadow-lg !border-white z-30";
+                } else if (ownerId) {
+                  cellClass += "font-black scale-100";
                 }
 
                 return (
@@ -203,7 +261,6 @@ export const GameBoard = ({
                     onMouseDown={() => handleSelectStart(y, x)}
                     onMouseEnter={() => handleSelectMove(y, x)}
                     className={cellClass}
-                    style={cellStyle}
                   >
                     {letter}
                   </div>
@@ -213,37 +270,53 @@ export const GameBoard = ({
           </div>
         </div>
 
-        {/* Word Attributions & Word Bank */}
-        <div className="w-full max-w-2xl mb-6">
-          <p className="text-xs uppercase font-bold text-slate-400 tracking-wider text-center mb-3">
-            Target Words
-          </p>
-          <div className="flex flex-wrap justify-center gap-3">
+        {/* Target Words List with Golden Word Distinction */}
+        <div className="w-full max-w-xl mb-4">
+          <div className="flex flex-wrap justify-center gap-2.5">
             {wordsToFind.map((word) => {
               const finderId = foundWords[word];
               const finder = finderId ? players[finderId] : null;
+              const isGolden = word === goldenWord;
+
+              let badgeStyle = "bg-black/30 border border-white/20 text-white";
+              if (isGolden && !finder) {
+                badgeStyle =
+                  "bg-gradient-to-r from-amber-500 to-yellow-400 text-black border-yellow-200 shadow-[0_0_15px_rgba(245,158,11,0.5)] font-black animate-pulse";
+              } else if (finder) {
+                badgeStyle =
+                  "bg-black/20 text-white/50 line-through border-transparent";
+              }
 
               return (
                 <div
                   key={word}
-                  className={`flex items-center gap-2 px-3.5 py-1.5 rounded-full text-sm font-semibold transition-all border ${
-                    finder
-                      ? "bg-slate-800 text-slate-400 shadow-sm"
-                      : "bg-indigo-950/40 text-indigo-300 border-indigo-700/50"
-                  }`}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all border ${badgeStyle}`}
                   style={finder ? { borderColor: `${finder.color}80` } : {}}
                 >
-                  <span className={finder ? "line-through opacity-70" : ""}>
-                    {word}
-                  </span>
+                  {isGolden && (
+                    <Sparkles
+                      size={14}
+                      className={
+                        finder
+                          ? "text-gray-400"
+                          : "text-amber-950 fill-amber-950"
+                      }
+                    />
+                  )}
+                  <span>{word}</span>
 
-                  {/* Player Attribution Badge */}
+                  {isGolden && !finder && (
+                    <span className="text-[10px] bg-amber-900/30 text-amber-950 px-1.5 py-0.5 rounded font-black">
+                      5 PTS
+                    </span>
+                  )}
+
                   {finder && (
                     <span
-                      className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full text-white font-bold shadow-sm"
+                      className="text-[9px] uppercase tracking-wider px-2 py-0.5 rounded-full text-white font-extrabold shadow-sm ml-1"
                       style={{ backgroundColor: finder.color }}
                     >
-                      {finder.name}
+                      {finder.name} {isGolden ? "(+5)" : "(+2)"}
                     </span>
                   )}
                 </div>
@@ -252,21 +325,21 @@ export const GameBoard = ({
           </div>
         </div>
 
-        {/* Player Scores */}
-        <div className="flex flex-wrap gap-3 w-full max-w-2xl justify-center">
+        {/* Player Scores Podium */}
+        <div className="flex flex-wrap gap-2.5 w-full max-w-xl justify-center">
           {playerList.map((p) => (
             <div
               key={p.id}
-              className="flex items-center gap-3 px-4 py-2 rounded-xl bg-slate-800 border-b-4 transition-all shadow-md"
+              className="flex items-center gap-2.5 px-3.5 py-1.5 rounded-xl bg-black/40 backdrop-blur-md border-b-4 shadow-md"
               style={{ borderColor: p.color }}
             >
               <div
-                className="w-3 h-3 rounded-full"
+                className="w-2.5 h-2.5 rounded-full shadow-sm"
                 style={{ backgroundColor: p.color }}
               />
-              <span className="font-bold text-sm text-slate-200">{p.name}</span>
+              <span className="font-bold text-xs">{p.name}</span>
               <span
-                className="text-lg font-black ml-2"
+                className="text-base font-black ml-1"
                 style={{ color: p.color }}
               >
                 {p.score}
