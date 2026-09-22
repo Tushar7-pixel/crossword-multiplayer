@@ -33,15 +33,15 @@ export type GameSettings = {
 };
 
 export type GameState = {
-    status: 'lobby' | 'playing' | 'scoreboard';
+    status: 'lobby' | 'playing' | 'scoreboard' | 'campaign-select' | 'campaign-play';
     currentRound: number;
     totalRounds: number;
     categories: string[];
     wordsPerRound: number;
     theme: ThemeType;
     localTheme?: ThemeType;
-    font: FontType; // <-- Room default
-    localFont?: FontType; // <-- Personal device override
+    font: FontType;
+    localFont?: FontType;
     players: Record<string, Player>;
     board: string[][];
     wordsToFind: string[];

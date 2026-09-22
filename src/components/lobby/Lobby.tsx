@@ -18,8 +18,9 @@ import { WORD_COLLECTIONS } from "../../lib/wordCollections";
 import { THEMES, FONTS } from "../../lib/themeStyles";
 import type { ThemeType, FontType } from "../../types/game";
 import { useToastStore } from "../../store/toastStore";
-
+import { generateRandomName } from "../../lib/nameGenerator"; // <-- Add this import
 interface LobbyProps {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   network: any;
 }
 
@@ -46,7 +47,7 @@ export const Lobby: React.FC<LobbyProps> = ({ network }) => {
     setLocalFont,
   } = useGameStore();
   const { showToast } = useToastStore();
-  const [name, setName] = useState("");
+  // const [name, setName] = useState("");
   const [roomCode, setRoomCode] = useState(() => {
     return new URLSearchParams(window.location.search).get("join") || "";
   });
@@ -55,6 +56,7 @@ export const Lobby: React.FC<LobbyProps> = ({ network }) => {
   );
   const [inWaitingRoom, setInWaitingRoom] = useState(false);
 
+  const [name, setName] = useState(() => generateRandomName());
   const { activeRooms } = useRoomDiscovery(isHost, peerId, name);
 
   // Active theme and font (local overrides room default)
@@ -63,6 +65,11 @@ export const Lobby: React.FC<LobbyProps> = ({ network }) => {
 
   const activeFontKey = (localFont || font) as FontType;
   const fontStyle = FONTS[activeFontKey] || FONTS.fredoka;
+  const { setGameState } = useGameStore();
+
+  const handleOffline = () => {
+    setGameState({ status: "campaign-select" });
+  };
 
   const handleHost = () => {
     if (!name.trim()) {
@@ -87,13 +94,13 @@ export const Lobby: React.FC<LobbyProps> = ({ network }) => {
     setInWaitingRoom(true);
   };
 
-  const handleOffline = () => {
-    if (!name.trim()) {
-      showToast("Please enter your name for offline mode", "warning");
-      return;
-    }
-    network.startOfflineGame(name);
-  };
+  // const handleOffline = () => {
+  //   if (!name.trim()) {
+  //     showToast("Please enter your name for offline mode", "warning");
+  //     return;
+  //   }
+  //   network.startOfflineGame(name);
+  // };
 
   const toggleCategory = (cat: string) => {
     let next: string[];

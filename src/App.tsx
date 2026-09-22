@@ -3,7 +3,9 @@ import { useGameStore } from "./store/gameStore";
 import { useGameNetwork } from "./hooks/useGameNetwork";
 import { Scoreboard } from "./components/ui/Scoreboard";
 import { GameBoard } from "./components/board/GameBoard";
-import { ToastContainer } from "./components/ui/ToastContainer"; // <-- Add this
+import { ToastContainer } from "./components/ui/ToastContainer";
+import { CampaignLevels } from "./components/campaign/CampaignLevels";
+import { CampaignGameBoard } from "./components/campaign/CampaignGameBoard";
 
 function App() {
   const network = useGameNetwork();
@@ -11,10 +13,12 @@ function App() {
 
   return (
     <div className="w-full min-h-screen bg-slate-900">
-      <ToastContainer /> {/* Mount toast overlay */}
+      <ToastContainer />
       {status === "lobby" && <Lobby network={network} />}
       {status === "playing" && <GameBoard network={network} />}
       {status === "scoreboard" && <Scoreboard network={network} />}
+      {status === "campaign-select" && <CampaignLevels />}
+      {status === "campaign-play" && <CampaignGameBoard />}
     </div>
   );
 }
