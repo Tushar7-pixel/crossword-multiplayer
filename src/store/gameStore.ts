@@ -3,10 +3,10 @@ import type { GameState, Player, CellCoord, FoundLine, GameSettings, ThemeType, 
 import { generateGrid } from '../lib/gridGenerator';
 import { WORD_COLLECTIONS } from '../lib/wordCollections';
 
-const HISTORY_KEY = 'crossword_session_history';
+const HISTORY_KEY = 'crossword_online_session_history_v1';
 
-// Helper: Retrieve last 3 sessions from storage
-const getStoredHistory = (): string[][] => {
+// Retrieves words from the past 3 completed sessions
+const getStoredSessionHistory = (): string[][] => {
     try {
         const raw = localStorage.getItem(HISTORY_KEY);
         return raw ? JSON.parse(raw) : [];
@@ -15,16 +15,18 @@ const getStoredHistory = (): string[][] => {
     }
 };
 
-// Helper: Push current session's words and keep at most 3 sessions
-const saveSessionWords = (newWords: string[]) => {
+// Archives a completed session's words into the rolling 3-session buffer
+const archiveSessionWords = (words: string[]) => {
+    if (!words || words.length === 0) return;
     try {
-        const history = getStoredHistory();
-        const updated = [newWords, ...history].slice(0, 3);
+        const history = getStoredSessionHistory();
+        const updated = [words, ...history].slice(0, 3);
         localStorage.setItem(HISTORY_KEY, JSON.stringify(updated));
     } catch { }
 };
 
 interface GameStore extends GameState {
+    currentSessionUsedWords: string[]; // Tracks all words used in the active match
     setGameState: (state: Partial<GameState>) => void;
     updateSettings: (settings: Partial<GameSettings>) => void;
     setLocalTheme: (theme: ThemeType) => void;
@@ -56,8 +58,9 @@ const initialState: GameState = {
     foundLines: [],
 };
 
-export const useGameStore = create<GameStore>((set) => ({
+export const useGameStore = create<GameStore>((set, get) => ({
     ...initialState,
+    currentSessionUsedWords: [],
 
     setGameState: (newState) =>
         set((state) => ({
@@ -116,63 +119,111 @@ export const useGameStore = create<GameStore>((set) => ({
             };
         }),
 
-    generateNewRound: (roundNumber, customSettings) =>
-        set((state) => {
-            const activeCategories = customSettings?.categories || state.categories;
-            const count = customSettings?.wordsPerRound || state.wordsPerRound;
-            const rounds = customSettings?.totalRounds || state.totalRounds;
-            const defaultTheme = customSettings?.theme || state.theme;
-            const defaultFont = customSettings?.font || state.font;
+    generateNewRound: (roundNumber, customSettings) => {
+        const state = get();
+        const activeCategories = customSettings?.categories || state.categories;
+        const count = customSettings?.wordsPerRound || state.wordsPerRound;
+        const rounds = customSettings?.totalRounds || state.totalRounds;
+        const defaultTheme = customSettings?.theme || state.theme;
+        const defaultFont = customSettings?.font || state.font;
 
-            // 1. Gather all words from active collections
-            const combinedPool = Array.from(
-                new Set(activeCategories.flatMap((cat) => WORD_COLLECTIONS[cat] || []))
+        // Reset or carry forward intra-session tracking
+        let sessionWords = roundNumber === 1 ? [] : [...state.currentSessionUsedWords];
+
+        // If starting a fresh session, archive the previous session's words into localStorage
+        if (roundNumber === 1 && state.currentSessionUsedWords.length > 0) {
+            archiveSessionWords(state.currentSessionUsedWords);
+        }
+
+        const pastSessions = getStoredSessionHistory();
+        const pastSessionsWords = new Set(pastSessions.flat());
+        const sessionWordSet = new Set(sessionWords);
+
+        const chosenRoundWords: string[] = [];
+
+        // Distribute quota evenly across active categories (Mix Words)
+        const basePerCat = Math.floor(count / activeCategories.length);
+        let remainder = count % activeCategories.length;
+
+        for (const cat of activeCategories) {
+            const catTarget = basePerCat + (remainder > 0 ? 1 : 0);
+            if (remainder > 0) remainder--;
+
+            const catPool = WORD_COLLECTIONS[cat] || [];
+
+            // 1. Strictly exclude current session's words AND past 3 sessions' words
+            let candidates = catPool.filter(
+                (w) => !sessionWordSet.has(w) && !pastSessionsWords.has(w) && !chosenRoundWords.includes(w)
             );
 
-            // 2. Rule 1: Exclude words used in the last 3 sessions
-            const history = getStoredHistory();
-            const recentlyUsedWords = new Set(history.flat());
-            let availablePool = combinedPool.filter((w) => !recentlyUsedWords.has(w));
-
-            // If available pool has fewer words than required, evict oldest history session
-            if (availablePool.length < count) {
-                const relaxedHistory = history.slice(0, 1).flat();
-                availablePool = combinedPool.filter((w) => !relaxedHistory.includes(w));
-            }
-            if (availablePool.length < count) {
-                availablePool = combinedPool; // Full fallback if pool exhausted
+            // 2. If pool exhausted (e.g. single small category like F1), relax past sessions (oldest first)
+            if (candidates.length < catTarget) {
+                const relaxedPast = new Set(pastSessions.slice(0, 1).flat());
+                candidates = catPool.filter(
+                    (w) => !sessionWordSet.has(w) && !relaxedPast.has(w) && !chosenRoundWords.includes(w)
+                );
             }
 
-            // Pick random unique words
-            const shuffled = [...availablePool].sort(() => 0.5 - Math.random()).slice(0, count);
+            // 3. Fallback: Allow any word from category NOT used in the current session
+            if (candidates.length < catTarget) {
+                candidates = catPool.filter(
+                    (w) => !sessionWordSet.has(w) && !chosenRoundWords.includes(w)
+                );
+            }
 
-            // Dynamic grid size: 12x12 for >8 words, else 10x10
-            const gridSize = count > 8 ? 12 : 10;
-            const { grid, placedWords } = generateGrid(shuffled, gridSize);
+            // 4. Absolute fallback (only if wordsPerRound * totalRounds exceeds total category size)
+            if (candidates.length < catTarget) {
+                candidates = catPool.filter((w) => !chosenRoundWords.includes(w));
+            }
 
-            // Record placed words into the 3-session history buffer
-            saveSessionWords(placedWords);
+            const shuffled = [...candidates].sort(() => 0.5 - Math.random());
+            chosenRoundWords.push(...shuffled.slice(0, catTarget));
+        }
 
-            // Select 1 Golden Word (worth 5 pts)
-            const hasGolden = Math.random() > 0.3 || roundNumber === rounds;
-            const golden = hasGolden ? placedWords[Math.floor(Math.random() * placedWords.length)] : null;
+        // Top-up if any category fell short of its portion
+        if (chosenRoundWords.length < count) {
+            const allActiveWords = activeCategories.flatMap((cat) => WORD_COLLECTIONS[cat] || []);
+            const remaining = allActiveWords.filter(
+                (w) => !chosenRoundWords.includes(w) && !sessionWordSet.has(w)
+            );
+            const shuffledRem = remaining.sort(() => 0.5 - Math.random());
+            chosenRoundWords.push(...shuffledRem.slice(0, count - chosenRoundWords.length));
+        }
 
-            return {
-                status: 'playing',
-                currentRound: roundNumber,
-                totalRounds: rounds,
-                categories: activeCategories,
-                wordsPerRound: count,
-                theme: defaultTheme,
-                font: defaultFont,
-                board: grid,
-                wordsToFind: placedWords,
-                goldenWord: golden,
-                foundWords: {},
-                foundCells: {},
-                foundLines: [],
-            };
-        }),
+        // Register newly placed words
+        sessionWords = [...sessionWords, ...chosenRoundWords];
 
-    resetSession: () => set(initialState),
+        // Grid sizing: 12x12 for >8 words, else 10x10
+        const gridSize = count > 8 ? 12 : 10;
+        const { grid, placedWords } = generateGrid(chosenRoundWords, gridSize);
+
+        // Pick 1 Golden Word (worth 5 pts)
+        const hasGolden = Math.random() > 0.3 || roundNumber === rounds;
+        const golden = hasGolden ? placedWords[Math.floor(Math.random() * placedWords.length)] : null;
+
+        set({
+            status: 'playing',
+            currentRound: roundNumber,
+            totalRounds: rounds,
+            categories: activeCategories,
+            wordsPerRound: count,
+            theme: defaultTheme,
+            font: defaultFont,
+            board: grid,
+            wordsToFind: placedWords,
+            goldenWord: golden,
+            foundWords: {},
+            foundCells: {},
+            foundLines: [],
+            currentSessionUsedWords: sessionWords,
+        });
+    },
+
+    resetSession: () => {
+        const current = get().currentSessionUsedWords;
+        if (current.length > 0) {
+            archiveSessionWords(current);
+        }
+        set({ ...initialState, currentSessionUsedWords: [] });
+    },
 }));

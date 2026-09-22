@@ -1,19 +1,22 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useGameStore } from "../../store/gameStore";
-import { useCampaignStore, CAMPAIGN_LEVELS } from "../../store/campaignStore";
+import {
+  useCampaignStore,
+  CAMPAIGN_LEVELS,
+  generateCampaignRound,
+} from "../../store/campaignStore";
 import { THEMES, FONTS } from "../../lib/themeStyles";
 import type { CellCoord, FontType } from "../../types/game";
-import { generateGrid } from "../../lib/gridGenerator";
-import { WORD_COLLECTIONS } from "../../lib/wordCollections";
+// import { generateGrid } from "../../lib/gridGenerator";
+// import { WORD_COLLECTIONS } from "../../lib/wordCollections";
 import { Star, ArrowLeft, RotateCcw, Play, CheckCircle2 } from "lucide-react";
-
-const createRoundData = (wordsCount: number, gridSize: number) => {
-  const allWords = Object.values(WORD_COLLECTIONS).flat();
-  const shuffledPool = [...new Set(allWords)].sort(() => 0.5 - Math.random());
-  const roundWords = shuffledPool.slice(0, wordsCount);
-  const { grid, placedWords } = generateGrid(roundWords, gridSize);
-  return { board: grid, wordsToFind: placedWords };
-};
+// const createRoundData = (wordsCount: number, gridSize: number) => {
+//   const allWords = Object.values(WORD_COLLECTIONS).flat();
+//   const shuffledPool = [...new Set(allWords)].sort(() => 0.5 - Math.random());
+//   const roundWords = shuffledPool.slice(0, wordsCount);
+//   const { grid, placedWords } = generateGrid(roundWords, gridSize);
+//   return { board: grid, wordsToFind: placedWords };
+// };
 
 export const CampaignGameBoard: React.FC = () => {
   const { theme, localTheme, font, localFont, setGameState } = useGameStore();
@@ -36,7 +39,7 @@ export const CampaignGameBoard: React.FC = () => {
   // Round & Board state initialized directly without sync effects
   const [currentRound, setCurrentRound] = useState(1);
   const [{ board, wordsToFind }, setRoundData] = useState(() =>
-    createRoundData(levelConfig.wordsPerRound, levelConfig.gridSize),
+    generateCampaignRound(levelConfig.wordsPerRound, levelConfig.gridSize),
   );
   const [foundWords, setFoundWords] = useState<Record<string, boolean>>({});
   const [foundCells, setFoundCells] = useState<Record<string, boolean>>({});
@@ -127,10 +130,12 @@ export const CampaignGameBoard: React.FC = () => {
       // Check if all words in this round are completed
       if (Object.keys(nextFoundWords).length === wordsToFind.length) {
         if (currentRound < 3) {
-          // Advance to round 2 or 3
           setCurrentRound((prev) => prev + 1);
           setRoundData(
-            createRoundData(levelConfig.wordsPerRound, levelConfig.gridSize),
+            generateCampaignRound(
+              levelConfig.wordsPerRound,
+              levelConfig.gridSize,
+            ),
           );
           setFoundWords({});
           setFoundCells({});
@@ -177,13 +182,12 @@ export const CampaignGameBoard: React.FC = () => {
     setElapsedTime(0);
     setIsLevelFinished(false);
     setRoundData(
-      createRoundData(levelConfig.wordsPerRound, levelConfig.gridSize),
+      generateCampaignRound(levelConfig.wordsPerRound, levelConfig.gridSize),
     );
     setFoundWords({});
     setFoundCells({});
     setSelectionCoords([]);
   };
-
   const nextLevel = () => {
     if (activeLevel < 20) {
       const nextLvl = activeLevel + 1;
@@ -194,7 +198,7 @@ export const CampaignGameBoard: React.FC = () => {
       setElapsedTime(0);
       setIsLevelFinished(false);
       setRoundData(
-        createRoundData(nextConfig.wordsPerRound, nextConfig.gridSize),
+        generateCampaignRound(nextConfig.wordsPerRound, nextConfig.gridSize),
       );
       setFoundWords({});
       setFoundCells({});

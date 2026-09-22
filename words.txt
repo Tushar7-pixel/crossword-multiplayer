@@ -150,5 +150,3 @@ export const WORD_COLLECTIONS: Record<string, string[]> = {
     'MOTIMAHAL', 'VAANGO', 'SOCIAL', 'TGIFRIDAYS', 'HARDROCK'
   ],
 };
-
-export type CollectionKey = keyof typeof WORD_COLLECTIONS;
