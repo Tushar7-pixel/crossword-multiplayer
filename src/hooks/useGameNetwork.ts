@@ -2,7 +2,7 @@ import { useRef, useState } from 'react';
 import Peer, { type DataConnection } from 'peerjs';
 import { useGameStore } from '../store/gameStore';
 import type { SocketAction, GameSettings } from '../types/game';
-
+import { toast } from '../store/toastStore';
 const PLAYER_COLORS = ['#ef4444', '#3b82f6', '#22c55e', '#eab308', '#a855f7'];
 
 export const useGameNetwork = () => {
@@ -88,7 +88,7 @@ export const useGameNetwork = () => {
             });
 
             conn.on('close', () => {
-                alert('Disconnected from Host');
+                toast('Disconnected from Host', 'error');
                 useGameStore.getState().resetSession();
             });
         });

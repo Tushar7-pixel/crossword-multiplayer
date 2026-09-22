@@ -1,0 +1,19 @@
+{
+  "name": "Crossword P2P Multiplayer",
+  "short_name": "Crossword P2P",
+  "description": "Real-time P2P Word Search game playable online and offline",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0f172a",
+  "theme_color": "#38bdf8",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

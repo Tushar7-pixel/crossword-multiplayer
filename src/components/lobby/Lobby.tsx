@@ -17,6 +17,7 @@ import { useRoomDiscovery } from "../../hooks/useRoomDiscovery";
 import { WORD_COLLECTIONS } from "../../lib/wordCollections";
 import { THEMES, FONTS } from "../../lib/themeStyles";
 import type { ThemeType, FontType } from "../../types/game";
+import { useToastStore } from "../../store/toastStore";
 
 interface LobbyProps {
   network: any;
@@ -44,7 +45,7 @@ export const Lobby: React.FC<LobbyProps> = ({ network }) => {
     localFont,
     setLocalFont,
   } = useGameStore();
-
+  const { showToast } = useToastStore();
   const [name, setName] = useState("");
   const [roomCode, setRoomCode] = useState(() => {
     return new URLSearchParams(window.location.search).get("join") || "";
@@ -64,22 +65,63 @@ export const Lobby: React.FC<LobbyProps> = ({ network }) => {
   const fontStyle = FONTS[activeFontKey] || FONTS.fredoka;
 
   const handleHost = () => {
-    if (!name.trim()) return alert("Please enter your name");
+    if (!name.trim()) {
+      showToast("Please enter your name to host a room", "warning");
+      return;
+    }
     hostGame(name);
     setInWaitingRoom(true);
   };
 
   const handleJoin = (targetCode?: string) => {
     const code = targetCode || roomCode;
-    if (!name.trim() || !code.trim())
-      return alert("Name and Room Code required");
+    if (!name.trim()) {
+      showToast("Please enter your name first", "warning");
+      return;
+    }
+    if (!code.trim()) {
+      showToast("Room code is required to join", "warning");
+      return;
+    }
     joinGame(code, name);
     setInWaitingRoom(true);
   };
 
   const handleOffline = () => {
-    if (!name.trim()) return alert("Please enter your name");
+    if (!name.trim()) {
+      showToast("Please enter your name for offline mode", "warning");
+      return;
+    }
     network.startOfflineGame(name);
+  };
+
+  const toggleCategory = (cat: string) => {
+    let next: string[];
+    if (categories.includes(cat)) {
+      if (categories.length === 1) {
+        showToast("Keep at least 1 category selected", "info");
+        return;
+      }
+      next = categories.filter((c) => c !== cat);
+    } else {
+      if (categories.length >= 4) {
+        showToast("You can select up to 4 categories maximum", "warning");
+        return;
+      }
+      next = [...categories, cat];
+    }
+    broadcastSettingsChange({ categories: next });
+  };
+
+  const copyRoomCode = () => {
+    navigator.clipboard.writeText(peerId);
+    showToast("Room code copied to clipboard!", "success");
+  };
+
+  const copyInviteLink = () => {
+    const inviteUrl = `${window.location.origin}${window.location.pathname}?join=${peerId}`;
+    navigator.clipboard.writeText(inviteUrl);
+    showToast("Invite link copied to clipboard!", "success");
   };
 
   const handleStartGame = () => {
@@ -87,17 +129,23 @@ export const Lobby: React.FC<LobbyProps> = ({ network }) => {
     broadcastState();
   };
 
-  const toggleCategory = (cat: string) => {
-    let next: string[];
-    if (categories.includes(cat)) {
-      if (categories.length === 1) return;
-      next = categories.filter((c) => c !== cat);
-    } else {
-      next = [...categories, cat];
-    }
-    broadcastSettingsChange({ categories: next });
-  };
+  // Inside src/components/lobby/Lobby.tsx:
 
+  // Rule 3: Allow selection of up to 4 categories maximum
+  // const toggleCategory = (cat: string) => {
+  //   let next: string[];
+  //   if (categories.includes(cat)) {
+  //     if (categories.length === 1) return; // Keep at least one selected
+  //     next = categories.filter((c) => c !== cat);
+  //   } else {
+  //     if (categories.length >= 4) {
+  //       alert("You can select up to 4 categories maximum.");
+  //       return;
+  //     }
+  //     next = [...categories, cat];
+  //   }
+  //   broadcastSettingsChange({ categories: next });
+  // };
   const cycleTheme = () => {
     const list: ThemeType[] = ["neon", "farm", "classic"];
     const next = list[(list.indexOf(activeThemeKey) + 1) % list.length];
@@ -114,16 +162,16 @@ export const Lobby: React.FC<LobbyProps> = ({ network }) => {
     if (isHost) broadcastSettingsChange({ font: next });
   };
 
-  const copyRoomCode = () => {
-    navigator.clipboard.writeText(peerId);
-    alert("Room code copied to clipboard!");
-  };
+  // const copyRoomCode = () => {
+  //   navigator.clipboard.writeText(peerId);
+  //   alert("Room code copied to clipboard!");
+  // };
 
-  const copyInviteLink = () => {
-    const inviteUrl = `${window.location.origin}${window.location.pathname}?join=${peerId}`;
-    navigator.clipboard.writeText(inviteUrl);
-    alert("Invite link copied!");
-  };
+  // const copyInviteLink = () => {
+  //   const inviteUrl = `${window.location.origin}${window.location.pathname}?join=${peerId}`;
+  //   navigator.clipboard.writeText(inviteUrl);
+  //   alert("Invite link copied!");
+  // };
 
   return (
     <div
@@ -230,26 +278,37 @@ export const Lobby: React.FC<LobbyProps> = ({ network }) => {
 
           {/* Word Collections */}
           <div className="space-y-3.5 bg-black/10 p-4 rounded-2xl border border-black/10 mb-5">
+            {/* Word Collections Header */}
             <div>
               <div className="flex justify-between items-center mb-2">
                 <label
                   className={`text-xs font-black uppercase tracking-wider ${themeStyle.subTextColor}`}
                 >
-                  Word Collections ({categories.length})
+                  Word Collections ({categories.length}/4 Max)
                 </label>
+                {categories.length >= 4 && (
+                  <span className="text-[10px] text-amber-500 font-bold">
+                    Max reached
+                  </span>
+                )}
               </div>
               <div className="flex flex-wrap gap-1.5">
                 {Object.keys(WORD_COLLECTIONS).map((cat) => {
                   const isSelected = categories.includes(cat);
+                  const isMaxed = !isSelected && categories.length >= 4;
+
                   return (
                     <button
                       key={cat}
+                      disabled={isMaxed}
                       onClick={() => toggleCategory(cat)}
                       style={{ fontFamily: fontStyle.fontFamily }}
                       className={`text-xs px-2.5 py-1 rounded-lg font-bold transition-all border ${
                         isSelected
                           ? `${themeStyle.accentBtn} border-transparent shadow-sm scale-105`
-                          : "bg-black/10 border-black/15 opacity-70 hover:opacity-100"
+                          : isMaxed
+                            ? "opacity-30 border-black/10 cursor-not-allowed bg-black/5"
+                            : "bg-black/10 border-black/15 opacity-70 hover:opacity-100"
                       }`}
                     >
                       {cat} {isSelected && "✓"}

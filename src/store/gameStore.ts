@@ -3,11 +3,32 @@ import type { GameState, Player, CellCoord, FoundLine, GameSettings, ThemeType, 
 import { generateGrid } from '../lib/gridGenerator';
 import { WORD_COLLECTIONS } from '../lib/wordCollections';
 
+const HISTORY_KEY = 'crossword_session_history';
+
+// Helper: Retrieve last 3 sessions from storage
+const getStoredHistory = (): string[][] => {
+    try {
+        const raw = localStorage.getItem(HISTORY_KEY);
+        return raw ? JSON.parse(raw) : [];
+    } catch {
+        return [];
+    }
+};
+
+// Helper: Push current session's words and keep at most 3 sessions
+const saveSessionWords = (newWords: string[]) => {
+    try {
+        const history = getStoredHistory();
+        const updated = [newWords, ...history].slice(0, 3);
+        localStorage.setItem(HISTORY_KEY, JSON.stringify(updated));
+    } catch { }
+};
+
 interface GameStore extends GameState {
     setGameState: (state: Partial<GameState>) => void;
     updateSettings: (settings: Partial<GameSettings>) => void;
     setLocalTheme: (theme: ThemeType) => void;
-    setLocalFont: (font: FontType) => void; // <-- NEW
+    setLocalFont: (font: FontType) => void;
     addPlayer: (player: Player) => void;
     removePlayer: (playerId: string) => void;
     updatePlayerScore: (playerId: string, points: number) => void;
@@ -22,9 +43,9 @@ const initialState: GameState = {
     totalRounds: 3,
     categories: ['Animals'],
     wordsPerRound: 5,
-    theme: 'farm',     // <-- Default Theme set to Farm Sunny
+    theme: 'farm',
     localTheme: undefined,
-    font: 'hand',      // <-- Default Font set to Classroom Hand
+    font: 'hand',
     localFont: undefined,
     players: {},
     board: [],
@@ -48,7 +69,6 @@ export const useGameStore = create<GameStore>((set) => ({
 
     setLocalTheme: (theme) => set({ localTheme: theme }),
     setLocalFont: (font) => set({ localFont: font }),
-
     updateSettings: (newSettings) => set((state) => ({ ...state, ...newSettings })),
 
     addPlayer: (player) =>
@@ -104,15 +124,36 @@ export const useGameStore = create<GameStore>((set) => ({
             const defaultTheme = customSettings?.theme || state.theme;
             const defaultFont = customSettings?.font || state.font;
 
+            // 1. Gather all words from active collections
             const combinedPool = Array.from(
                 new Set(activeCategories.flatMap((cat) => WORD_COLLECTIONS[cat] || []))
             );
-            const pool = combinedPool.length > 0 ? combinedPool : WORD_COLLECTIONS.Animals;
-            const shuffled = [...pool].sort(() => 0.5 - Math.random()).slice(0, count);
 
+            // 2. Rule 1: Exclude words used in the last 3 sessions
+            const history = getStoredHistory();
+            const recentlyUsedWords = new Set(history.flat());
+            let availablePool = combinedPool.filter((w) => !recentlyUsedWords.has(w));
+
+            // If available pool has fewer words than required, evict oldest history session
+            if (availablePool.length < count) {
+                const relaxedHistory = history.slice(0, 1).flat();
+                availablePool = combinedPool.filter((w) => !relaxedHistory.includes(w));
+            }
+            if (availablePool.length < count) {
+                availablePool = combinedPool; // Full fallback if pool exhausted
+            }
+
+            // Pick random unique words
+            const shuffled = [...availablePool].sort(() => 0.5 - Math.random()).slice(0, count);
+
+            // Dynamic grid size: 12x12 for >8 words, else 10x10
             const gridSize = count > 8 ? 12 : 10;
             const { grid, placedWords } = generateGrid(shuffled, gridSize);
 
+            // Record placed words into the 3-session history buffer
+            saveSessionWords(placedWords);
+
+            // Select 1 Golden Word (worth 5 pts)
             const hasGolden = Math.random() > 0.3 || roundNumber === rounds;
             const golden = hasGolden ? placedWords[Math.floor(Math.random() * placedWords.length)] : null;
 
