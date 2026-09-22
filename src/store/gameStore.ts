@@ -22,9 +22,9 @@ const initialState: GameState = {
     totalRounds: 3,
     categories: ['Animals'],
     wordsPerRound: 5,
-    theme: 'neon',
+    theme: 'farm',     // <-- Default Theme set to Farm Sunny
     localTheme: undefined,
-    font: 'comic',
+    font: 'hand',      // <-- Default Font set to Classroom Hand
     localFont: undefined,
     players: {},
     board: [],

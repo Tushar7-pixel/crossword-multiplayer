@@ -1,18 +1,24 @@
 @import "tailwindcss";
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
-@import url("https://fonts.googleapis.com/css2?family=Comic+Neue:wght@400;700&family=Inter:wght@400;600;800;900&family=Space+Mono:wght@400;700&display=swap");
-@import "tailwindcss";
+
+.font-fredoka {
+  font-family:
+    "Fredoka",
+    -apple-system,
+    BlinkMacSystemFont,
+    sans-serif;
+}
 
 .font-comic {
-  font-family:
-    "Comic Neue", "Comic Sans MS", "Chalkboard SE", cursive, sans-serif;
+  font-family: "Comic Neue", "Comic Sans MS", cursive, sans-serif;
+}
+
+.font-hand {
+  font-family: "Patrick Hand", cursive, sans-serif;
 }
 
 .font-sans-clean {
   font-family:
-    "Inter",
+    "Outfit",
     -apple-system,
     BlinkMacSystemFont,
     sans-serif;

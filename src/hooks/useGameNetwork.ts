@@ -201,14 +201,14 @@ export const useGameNetwork = () => {
         });
     };
 
+    // Also ensure sendToHost routes correctly:
     const sendToHost = (action: SocketAction) => {
         if (isHostRef.current) {
-            handleIncomingAction(action, { peer: peerRef.current?.id || 'host' } as DataConnection);
+            handleIncomingAction(action, { peer: peerRef.current?.id || 'local-player' } as DataConnection);
         } else if (hostConnectionRef.current && hostConnectionRef.current.open) {
             hostConnectionRef.current.send(action);
         }
     };
-
     const broadcastSettingsChange = (newSettings: Partial<GameSettings>) => {
         updateSettings(newSettings);
         if (isHostRef.current) {
@@ -228,6 +228,20 @@ export const useGameNetwork = () => {
         useGameStore.getState().removePlayer(playerId);
         broadcastState();
     };
+    const startOfflineGame = (playerName: string) => {
+        setIsHost(true);
+        isHostRef.current = true;
+        setPeerId('local-player');
 
-    return { peerId, isHost, hostGame, joinGame, sendToHost, broadcastState, broadcastSettingsChange, kickPlayer };
+        useGameStore.getState().addPlayer({
+            id: 'local-player',
+            name: playerName,
+            color: PLAYER_COLORS[0],
+            score: 0,
+            isHost: true,
+        });
+
+        useGameStore.getState().generateNewRound(1);
+    };
+    return { peerId, isHost, hostGame, joinGame, startOfflineGame, sendToHost, broadcastState, broadcastSettingsChange, kickPlayer };
 };

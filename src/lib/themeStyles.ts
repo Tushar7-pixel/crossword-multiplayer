@@ -1,9 +1,26 @@
 import type { ThemeType, FontType } from '../types/game';
 
-export const FONTS: Record<FontType, { name: string; class: string }> = {
-    comic: { name: 'Playful Comic', class: 'font-comic' },
-    sans: { name: 'Modern Sans', class: 'font-sans-clean' },
-    mono: { name: 'Arcade Mono', class: 'font-arcade' },
+export const FONTS: Record<FontType, { name: string; fontFamily: string }> = {
+    fredoka: {
+        name: 'Chunky Bubble',
+        fontFamily: "'Fredoka', cursive, sans-serif"
+    },
+    comic: {
+        name: 'Playful Comic',
+        fontFamily: "'Comic Neue', cursive, sans-serif"
+    },
+    hand: {
+        name: 'Classroom Hand',
+        fontFamily: "'Patrick Hand', cursive, sans-serif"
+    },
+    sans: {
+        name: 'Modern Sans',
+        fontFamily: "'Outfit', -apple-system, BlinkMacSystemFont, sans-serif"
+    },
+    mono: {
+        name: 'Arcade Mono',
+        fontFamily: "'Space Mono', monospace"
+    },
 };
 
 export const THEMES: Record<

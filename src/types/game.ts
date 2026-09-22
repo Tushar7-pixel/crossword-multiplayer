@@ -15,10 +15,15 @@ export type FoundLine = {
     end: CellCoord;
     playerId: string;
 };
-
+export const FONTS: Record<FontType, { name: string; class: string }> = {
+    fredoka: { name: 'Chunky Bubble', class: 'font-fredoka' },
+    comic: { name: 'Playful Comic', class: 'font-comic' },
+    hand: { name: 'Classroom Hand', class: 'font-hand' },
+    sans: { name: 'Modern Sans', class: 'font-sans-clean' },
+    mono: { name: 'Arcade Mono', class: 'font-arcade' },
+};
 export type ThemeType = 'neon' | 'farm' | 'classic';
-export type FontType = 'comic' | 'sans' | 'mono'; // <-- NEW
-
+export type FontType = 'fredoka' | 'comic' | 'hand' | 'sans' | 'mono';
 export type GameSettings = {
     categories: string[];
     wordsPerRound: number;

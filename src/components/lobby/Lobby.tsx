@@ -60,8 +60,8 @@ export const Lobby: React.FC<LobbyProps> = ({ network }) => {
   const activeThemeKey = localTheme || theme;
   const themeStyle = THEMES[activeThemeKey] || THEMES.neon;
 
-  const activeFontKey = localFont || font;
-  const fontStyle = FONTS[activeFontKey] || FONTS.comic;
+  const activeFontKey = (localFont || font) as FontType;
+  const fontStyle = FONTS[activeFontKey] || FONTS.fredoka;
 
   const handleHost = () => {
     if (!name.trim()) return alert("Please enter your name");
@@ -79,14 +79,7 @@ export const Lobby: React.FC<LobbyProps> = ({ network }) => {
 
   const handleOffline = () => {
     if (!name.trim()) return alert("Please enter your name");
-    useGameStore.getState().addPlayer({
-      id: "local-1",
-      name,
-      color: "#3b82f6",
-      score: 0,
-      isHost: true,
-    });
-    useGameStore.getState().generateNewRound(1);
+    network.startOfflineGame(name);
   };
 
   const handleStartGame = () => {
@@ -113,8 +106,10 @@ export const Lobby: React.FC<LobbyProps> = ({ network }) => {
   };
 
   const cycleFont = () => {
-    const list: FontType[] = ["comic", "sans", "mono"];
-    const next = list[(list.indexOf(activeFontKey) + 1) % list.length];
+    const list: FontType[] = ["fredoka", "comic", "hand", "sans", "mono"];
+    const currentIndex = list.indexOf(activeFontKey);
+    const next =
+      list[(currentIndex === -1 ? 0 : currentIndex + 1) % list.length];
     setLocalFont(next);
     if (isHost) broadcastSettingsChange({ font: next });
   };
@@ -132,12 +127,14 @@ export const Lobby: React.FC<LobbyProps> = ({ network }) => {
 
   return (
     <div
-      className={`flex flex-col items-center justify-center min-h-screen ${themeStyle.bg} ${themeStyle.textColor} ${fontStyle.class} transition-colors duration-500 p-4`}
+      className={`flex flex-col items-center justify-center min-h-screen ${themeStyle.bg} ${themeStyle.textColor} transition-colors duration-500 p-4`}
+      style={{ fontFamily: fontStyle.fontFamily }}
     >
       {/* Top Floating Bar: Personal Theme & Font Quick Switcher */}
       <div className="w-full max-w-lg flex items-center justify-between mb-4 px-2">
         <button
           onClick={cycleTheme}
+          style={{ fontFamily: fontStyle.fontFamily }}
           className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full bg-black/20 hover:bg-black/30 backdrop-blur-md border border-white/20 transition-all shadow-sm"
         >
           <Palette size={14} /> Theme: {themeStyle.name}
@@ -145,6 +142,7 @@ export const Lobby: React.FC<LobbyProps> = ({ network }) => {
 
         <button
           onClick={cycleFont}
+          style={{ fontFamily: fontStyle.fontFamily }}
           className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full bg-black/20 hover:bg-black/30 backdrop-blur-md border border-white/20 transition-all shadow-sm"
         >
           <Type size={14} /> Font: {fontStyle.name}
@@ -177,6 +175,7 @@ export const Lobby: React.FC<LobbyProps> = ({ network }) => {
               </div>
               <button
                 onClick={copyInviteLink}
+                style={{ fontFamily: fontStyle.fontFamily }}
                 className="w-full bg-black/15 hover:bg-black/25 text-xs font-bold py-1.5 px-3 rounded-xl border border-black/20 flex items-center justify-center gap-1.5"
               >
                 <Link size={14} /> Copy Direct Invite Link
@@ -246,6 +245,7 @@ export const Lobby: React.FC<LobbyProps> = ({ network }) => {
                     <button
                       key={cat}
                       onClick={() => toggleCategory(cat)}
+                      style={{ fontFamily: fontStyle.fontFamily }}
                       className={`text-xs px-2.5 py-1 rounded-lg font-bold transition-all border ${
                         isSelected
                           ? `${themeStyle.accentBtn} border-transparent shadow-sm scale-105`
@@ -322,6 +322,7 @@ export const Lobby: React.FC<LobbyProps> = ({ network }) => {
           {isHost && (
             <button
               onClick={handleStartGame}
+              style={{ fontFamily: fontStyle.fontFamily }}
               className={`w-full ${themeStyle.accentBtn} font-black py-3 px-4 rounded-2xl flex items-center justify-center gap-2 transition-all shadow-lg text-sm`}
             >
               <Play size={18} /> Start Game
@@ -356,6 +357,7 @@ export const Lobby: React.FC<LobbyProps> = ({ network }) => {
                 type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
+                style={{ fontFamily: fontStyle.fontFamily }}
                 className={`w-full ${themeStyle.inputBg} border ${themeStyle.inputBorder} rounded-xl px-4 py-2.5 font-bold text-sm outline-none`}
                 placeholder="Enter unique name"
                 maxLength={15}
@@ -365,12 +367,14 @@ export const Lobby: React.FC<LobbyProps> = ({ network }) => {
             <div className="grid grid-cols-2 gap-3">
               <button
                 onClick={handleHost}
+                style={{ fontFamily: fontStyle.fontFamily }}
                 className={`${themeStyle.accentBtn} py-2.5 rounded-xl font-black text-sm flex items-center justify-center gap-2 transition-all shadow-md`}
               >
                 <Wifi size={16} /> Host Game
               </button>
               <button
                 onClick={handleOffline}
+                style={{ fontFamily: fontStyle.fontFamily }}
                 className="bg-black/15 hover:bg-black/25 py-2.5 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-colors border border-black/15"
               >
                 <WifiOff size={16} /> Offline Mode
@@ -396,6 +400,7 @@ export const Lobby: React.FC<LobbyProps> = ({ network }) => {
                       </span>
                       <button
                         onClick={() => handleJoin(room.hostId)}
+                        style={{ fontFamily: fontStyle.fontFamily }}
                         className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded-lg text-xs font-black transition-colors"
                       >
                         Join
@@ -426,6 +431,7 @@ export const Lobby: React.FC<LobbyProps> = ({ network }) => {
               />
               <button
                 onClick={() => handleJoin()}
+                style={{ fontFamily: fontStyle.fontFamily }}
                 className="bg-green-600 hover:bg-green-700 text-white px-5 rounded-xl font-black text-sm transition-colors shadow-md"
               >
                 Join
