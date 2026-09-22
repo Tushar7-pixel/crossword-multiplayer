@@ -11,14 +11,14 @@ import {
   Radio,
   Sparkles,
   Palette,
+  Type,
 } from "lucide-react";
 import { useRoomDiscovery } from "../../hooks/useRoomDiscovery";
 import { WORD_COLLECTIONS } from "../../lib/wordCollections";
-import { THEMES } from "../../lib/themeStyles";
-import type { ThemeType } from "../../types/game";
+import { THEMES, FONTS } from "../../lib/themeStyles";
+import type { ThemeType, FontType } from "../../types/game";
 
 interface LobbyProps {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   network: any;
 }
 
@@ -40,6 +40,9 @@ export const Lobby: React.FC<LobbyProps> = ({ network }) => {
     theme,
     localTheme,
     setLocalTheme,
+    font,
+    localFont,
+    setLocalFont,
   } = useGameStore();
 
   const [name, setName] = useState("");
@@ -53,7 +56,12 @@ export const Lobby: React.FC<LobbyProps> = ({ network }) => {
 
   const { activeRooms } = useRoomDiscovery(isHost, peerId, name);
 
-  const activeTheme = localTheme || theme;
+  // Active theme and font (local overrides room default)
+  const activeThemeKey = localTheme || theme;
+  const themeStyle = THEMES[activeThemeKey] || THEMES.neon;
+
+  const activeFontKey = localFont || font;
+  const fontStyle = FONTS[activeFontKey] || FONTS.comic;
 
   const handleHost = () => {
     if (!name.trim()) return alert("Please enter your name");
@@ -86,11 +94,10 @@ export const Lobby: React.FC<LobbyProps> = ({ network }) => {
     broadcastState();
   };
 
-  // Toggle category on/off (ensuring at least 1 remains selected)
   const toggleCategory = (cat: string) => {
     let next: string[];
     if (categories.includes(cat)) {
-      if (categories.length === 1) return; // Keep at least one category selected
+      if (categories.length === 1) return;
       next = categories.filter((c) => c !== cat);
     } else {
       next = [...categories, cat];
@@ -98,12 +105,18 @@ export const Lobby: React.FC<LobbyProps> = ({ network }) => {
     broadcastSettingsChange({ categories: next });
   };
 
-  // Theme selection: Host updates the room default, players set their personal theme
-  const handleSelectTheme = (t: ThemeType) => {
-    setLocalTheme(t);
-    if (isHost) {
-      broadcastSettingsChange({ theme: t });
-    }
+  const cycleTheme = () => {
+    const list: ThemeType[] = ["neon", "farm", "classic"];
+    const next = list[(list.indexOf(activeThemeKey) + 1) % list.length];
+    setLocalTheme(next);
+    if (isHost) broadcastSettingsChange({ theme: next });
+  };
+
+  const cycleFont = () => {
+    const list: FontType[] = ["comic", "sans", "mono"];
+    const next = list[(list.indexOf(activeFontKey) + 1) % list.length];
+    setLocalFont(next);
+    if (isHost) broadcastSettingsChange({ font: next });
   };
 
   const copyRoomCode = () => {
@@ -117,69 +130,95 @@ export const Lobby: React.FC<LobbyProps> = ({ network }) => {
     alert("Invite link copied!");
   };
 
-  if (inWaitingRoom) {
-    const playerList = Object.values(players);
+  return (
+    <div
+      className={`flex flex-col items-center justify-center min-h-screen ${themeStyle.bg} ${themeStyle.textColor} ${fontStyle.class} transition-colors duration-500 p-4`}
+    >
+      {/* Top Floating Bar: Personal Theme & Font Quick Switcher */}
+      <div className="w-full max-w-lg flex items-center justify-between mb-4 px-2">
+        <button
+          onClick={cycleTheme}
+          className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full bg-black/20 hover:bg-black/30 backdrop-blur-md border border-white/20 transition-all shadow-sm"
+        >
+          <Palette size={14} /> Theme: {themeStyle.name}
+        </button>
 
-    return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-slate-900 text-white p-4">
-        <div className="bg-slate-800 p-6 rounded-2xl shadow-2xl w-full max-w-lg border border-slate-700">
-          <h2 className="text-xl font-bold mb-4 text-center flex items-center justify-center gap-2">
-            <Users size={20} /> Waiting Room
+        <button
+          onClick={cycleFont}
+          className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full bg-black/20 hover:bg-black/30 backdrop-blur-md border border-white/20 transition-all shadow-sm"
+        >
+          <Type size={14} /> Font: {fontStyle.name}
+        </button>
+      </div>
+
+      {inWaitingRoom ? (
+        /* Waiting Room */
+        <div
+          className={`${themeStyle.cardBg} p-6 sm:p-8 rounded-3xl shadow-2xl w-full max-w-lg border-2 ${themeStyle.border} transition-all duration-300`}
+        >
+          <h2
+            className={`text-2xl font-black mb-4 text-center flex items-center justify-center gap-2 ${themeStyle.titleColor}`}
+          >
+            <Users size={22} /> Waiting Room
           </h2>
 
           {isHost ? (
-            <div className="mb-4 p-3 bg-slate-700/80 rounded-xl text-center">
+            <div className="mb-4 p-3 bg-black/10 rounded-2xl text-center border border-black/10">
               <div className="flex items-center justify-center gap-2 mb-2">
-                <span className="text-xs font-mono bg-slate-800 px-3 py-1.5 rounded-md max-w-[200px] truncate text-slate-300">
+                <span className="text-xs font-mono px-3 py-1.5 rounded-lg max-w-[200px] truncate bg-black/20 font-bold">
                   {peerId || "Generating..."}
                 </span>
                 <button
                   onClick={copyRoomCode}
-                  className="p-1.5 bg-slate-600 hover:bg-slate-500 rounded-md"
+                  className="p-1.5 bg-black/20 hover:bg-black/30 rounded-lg"
                 >
                   <Copy size={14} />
                 </button>
               </div>
               <button
                 onClick={copyInviteLink}
-                className="w-full bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 text-xs font-semibold py-1.5 px-3 rounded-lg border border-indigo-500/30 flex items-center justify-center gap-1.5"
+                className="w-full bg-black/15 hover:bg-black/25 text-xs font-bold py-1.5 px-3 rounded-xl border border-black/20 flex items-center justify-center gap-1.5"
               >
                 <Link size={14} /> Copy Direct Invite Link
               </button>
             </div>
           ) : (
-            <div className="mb-4 text-center text-xs text-slate-400 animate-pulse">
+            <div
+              className={`mb-4 text-center text-xs animate-pulse font-bold ${themeStyle.subTextColor}`}
+            >
               Waiting for host to launch the game...
             </div>
           )}
 
           {/* Roster */}
           <div className="space-y-2 mb-5">
-            <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">
-              Players ({playerList.length}/5)
+            <h3
+              className={`text-xs font-black uppercase tracking-wider ${themeStyle.subTextColor}`}
+            >
+              Players ({Object.values(players).length}/5)
             </h3>
             <div className="grid grid-cols-2 gap-2">
-              {playerList.map((p) => (
+              {Object.values(players).map((p) => (
                 <div
                   key={p.id}
-                  className="flex items-center gap-2 bg-slate-700/60 p-2.5 rounded-lg border border-slate-600/40"
+                  className="flex items-center gap-2 bg-black/10 p-2.5 rounded-xl border border-black/10"
                 >
                   <div
-                    className="w-3.5 h-3.5 rounded-full"
+                    className="w-3.5 h-3.5 rounded-full shadow-sm"
                     style={{ backgroundColor: p.color }}
                   />
-                  <span className="font-medium text-xs truncate flex-1">
+                  <span className="font-bold text-xs truncate flex-1">
                     {p.name}
                   </span>
                   {p.isHost ? (
-                    <span className="text-[10px] bg-indigo-500 px-1.5 py-0.5 rounded font-bold">
+                    <span className="text-[10px] bg-black/30 px-1.5 py-0.5 rounded font-black">
                       Host
                     </span>
                   ) : (
                     isHost && (
                       <button
                         onClick={() => kickPlayer(p.id)}
-                        className="text-slate-400 hover:text-red-400 p-0.5"
+                        className="opacity-60 hover:opacity-100 p-0.5"
                       >
                         <UserMinus size={14} />
                       </button>
@@ -190,17 +229,15 @@ export const Lobby: React.FC<LobbyProps> = ({ network }) => {
             </div>
           </div>
 
-          {/* Settings Section */}
-          <div className="space-y-4 bg-slate-700/40 p-4 rounded-xl border border-slate-600/50 mb-5">
-            {/* Multi-Collection Selection */}
+          {/* Word Collections */}
+          <div className="space-y-3.5 bg-black/10 p-4 rounded-2xl border border-black/10 mb-5">
             <div>
               <div className="flex justify-between items-center mb-2">
-                <label className="text-xs font-bold text-slate-300 uppercase tracking-wider">
-                  Word Collections (Select Multiple)
+                <label
+                  className={`text-xs font-black uppercase tracking-wider ${themeStyle.subTextColor}`}
+                >
+                  Word Collections ({categories.length})
                 </label>
-                <span className="text-[11px] text-indigo-400 font-semibold">
-                  {categories.length} Selected
-                </span>
               </div>
               <div className="flex flex-wrap gap-1.5">
                 {Object.keys(WORD_COLLECTIONS).map((cat) => {
@@ -209,10 +246,10 @@ export const Lobby: React.FC<LobbyProps> = ({ network }) => {
                     <button
                       key={cat}
                       onClick={() => toggleCategory(cat)}
-                      className={`text-xs px-2.5 py-1 rounded-md font-bold transition-all border ${
+                      className={`text-xs px-2.5 py-1 rounded-lg font-bold transition-all border ${
                         isSelected
-                          ? "bg-indigo-600 border-indigo-400 text-white shadow-sm"
-                          : "bg-slate-700 border-slate-600 text-slate-400 hover:text-slate-200"
+                          ? `${themeStyle.accentBtn} border-transparent shadow-sm scale-105`
+                          : "bg-black/10 border-black/15 opacity-70 hover:opacity-100"
                       }`}
                     >
                       {cat} {isSelected && "✓"}
@@ -222,44 +259,13 @@ export const Lobby: React.FC<LobbyProps> = ({ network }) => {
               </div>
             </div>
 
-            {/* Device-Specific Theme Picker */}
-            <div>
-              <div className="flex justify-between items-center mb-2">
-                <label className="flex items-center gap-1.5 text-xs font-bold text-slate-300 uppercase tracking-wider">
-                  <Palette size={14} /> Theme (Personal to your device)
-                </label>
-                {isHost && (
-                  <span className="text-[10px] text-slate-400">
-                    (Sets Room Default)
-                  </span>
-                )}
-              </div>
-              <div className="grid grid-cols-3 gap-2">
-                {(["neon", "farm", "classic"] as ThemeType[]).map((t) => (
-                  <button
-                    key={t}
-                    onClick={() => handleSelectTheme(t)}
-                    className={`text-xs py-1.5 rounded-md font-bold border transition-all ${
-                      activeTheme === t
-                        ? "border-indigo-400 bg-indigo-500/20 text-white"
-                        : "border-slate-600 bg-slate-700/50 text-slate-400 hover:text-slate-200"
-                    }`}
-                  >
-                    {THEMES[t].name}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Host-Only Game Length Configurations */}
+            {/* Host Game Settings */}
             {isHost && (
-              <div className="grid grid-cols-2 gap-4 pt-2 border-t border-slate-600/50">
+              <div className="grid grid-cols-2 gap-4 pt-3 border-t border-black/10">
                 <div>
-                  <label className="flex justify-between text-xs font-bold text-slate-300 mb-1">
+                  <label className="flex justify-between text-xs font-bold mb-1">
                     <span>Words / Round</span>
-                    <span className="text-indigo-400 font-bold">
-                      {wordsPerRound}
-                    </span>
+                    <span className="font-black">{wordsPerRound}</span>
                   </label>
                   <input
                     type="range"
@@ -271,20 +277,18 @@ export const Lobby: React.FC<LobbyProps> = ({ network }) => {
                         wordsPerRound: Number(e.target.value),
                       })
                     }
-                    className="w-full accent-indigo-500"
+                    className="w-full accent-current"
                   />
-                  <div className="flex justify-between text-[10px] text-slate-400 px-0.5">
+                  <div className="flex justify-between text-[10px] opacity-60">
                     <span>3</span>
                     <span>15</span>
                   </div>
                 </div>
 
                 <div>
-                  <label className="flex justify-between text-xs font-bold text-slate-300 mb-1">
+                  <label className="flex justify-between text-xs font-bold mb-1">
                     <span>Total Rounds</span>
-                    <span className="text-indigo-400 font-bold">
-                      {totalRounds}
-                    </span>
+                    <span className="font-black">{totalRounds}</span>
                   </label>
                   <input
                     type="range"
@@ -296,9 +300,9 @@ export const Lobby: React.FC<LobbyProps> = ({ network }) => {
                         totalRounds: Number(e.target.value),
                       })
                     }
-                    className="w-full accent-indigo-500"
+                    className="w-full accent-current"
                   />
-                  <div className="flex justify-between text-[10px] text-slate-400 px-0.5">
+                  <div className="flex justify-between text-[10px] opacity-60">
                     <span>1</span>
                     <span>5</span>
                   </div>
@@ -307,9 +311,8 @@ export const Lobby: React.FC<LobbyProps> = ({ network }) => {
             )}
           </div>
 
-          {/* Golden Word Rule */}
-          <div className="flex items-center gap-2 p-2.5 bg-amber-500/10 border border-amber-500/30 rounded-lg text-xs text-amber-200 mb-5">
-            <Sparkles size={16} className="text-amber-400 shrink-0" />
+          <div className="flex items-center gap-2 p-2.5 bg-amber-500/10 border border-amber-500/30 rounded-xl text-xs text-amber-600 dark:text-amber-300 mb-5">
+            <Sparkles size={16} className="text-amber-500 shrink-0" />
             <span>
               Regular words: <strong>2 pts</strong>. Golden Word:{" "}
               <strong>5 pts</strong>!
@@ -319,113 +322,118 @@ export const Lobby: React.FC<LobbyProps> = ({ network }) => {
           {isHost && (
             <button
               onClick={handleStartGame}
-              className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-4 rounded-xl flex items-center justify-center gap-2 transition-colors shadow-lg shadow-indigo-600/30"
+              className={`w-full ${themeStyle.accentBtn} font-black py-3 px-4 rounded-2xl flex items-center justify-center gap-2 transition-all shadow-lg text-sm`}
             >
               <Play size={18} /> Start Game
             </button>
           )}
         </div>
-      </div>
-    );
-  }
+      ) : (
+        /* Initial Screen */
+        <div
+          className={`${themeStyle.cardBg} p-6 sm:p-8 rounded-3xl shadow-2xl w-full max-w-md border-2 ${themeStyle.border} transition-all duration-300`}
+        >
+          <h1
+            className={`text-3xl font-black text-center mb-6 tracking-wider ${themeStyle.titleColor}`}
+          >
+            CROSSWORD P2P
+          </h1>
 
-  // Initial Form View
-  return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-slate-900 text-white p-4">
-      <div className="bg-slate-800 p-6 sm:p-8 rounded-2xl shadow-2xl w-full max-w-md border border-slate-700">
-        <h1 className="text-2xl sm:text-3xl font-black text-center mb-6 text-indigo-400 tracking-wide">
-          CROSSWORD P2P
-        </h1>
-
-        {hasInviteLink && (
-          <div className="mb-5 p-3 bg-indigo-950/60 border border-indigo-700/60 rounded-lg text-xs text-indigo-200 text-center">
-            You've been invited to join a game! Enter your name to enter the
-            waiting room.
-          </div>
-        )}
-
-        <div className="space-y-5">
-          <div>
-            <label className="block text-xs font-bold uppercase tracking-wider mb-2 text-slate-300">
-              Your Name
-            </label>
-            <input
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className="w-full bg-slate-700 text-white border border-slate-600 rounded-lg px-4 py-2.5 focus:outline-none focus:border-indigo-500 font-medium text-sm"
-              placeholder="Enter unique name"
-              maxLength={15}
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <button
-              onClick={handleHost}
-              className="bg-indigo-600 hover:bg-indigo-700 py-2.5 rounded-lg font-bold text-sm flex items-center justify-center gap-2 transition-colors shadow-md"
-            >
-              <Wifi size={16} /> Host Game
-            </button>
-            <button
-              onClick={handleOffline}
-              className="bg-slate-600 hover:bg-slate-500 py-2.5 rounded-lg font-bold text-sm flex items-center justify-center gap-2 transition-colors"
-            >
-              <WifiOff size={16} /> Offline Mode
-            </button>
-          </div>
-
-          {activeRooms.length > 0 && (
-            <div className="pt-2">
-              <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2.5 flex items-center gap-1.5">
-                <Radio size={14} className="text-green-400 animate-pulse" />{" "}
-                Active Rooms Nearby
-              </h3>
-              <div className="space-y-1.5">
-                {activeRooms.map((room) => (
-                  <div
-                    key={room.hostId}
-                    className="flex items-center justify-between bg-slate-700/70 border border-slate-600/50 p-2.5 rounded-lg"
-                  >
-                    <span className="font-semibold text-xs text-slate-200">
-                      {room.hostName}'s room
-                    </span>
-                    <button
-                      onClick={() => handleJoin(room.hostId)}
-                      className="bg-green-600 hover:bg-green-700 px-3 py-1 rounded text-xs font-bold transition-colors"
-                    >
-                      Join
-                    </button>
-                  </div>
-                ))}
-              </div>
+          {hasInviteLink && (
+            <div className="mb-5 p-3 bg-black/10 border border-black/15 rounded-xl text-xs font-bold text-center">
+              You've been invited! Enter your name to enter the game lobby.
             </div>
           )}
 
-          <div className="relative flex py-1 items-center">
-            <div className="flex-grow border-t border-slate-600"></div>
-            <span className="flex-shrink-0 mx-3 text-gray-400 text-[10px] uppercase font-bold tracking-wider">
-              OR JOIN CODE
-            </span>
-            <div className="flex-grow border-t border-slate-600"></div>
-          </div>
+          <div className="space-y-4">
+            <div>
+              <label
+                className={`block text-xs font-black uppercase tracking-wider mb-2 ${themeStyle.subTextColor}`}
+              >
+                Your Name
+              </label>
+              <input
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                className={`w-full ${themeStyle.inputBg} border ${themeStyle.inputBorder} rounded-xl px-4 py-2.5 font-bold text-sm outline-none`}
+                placeholder="Enter unique name"
+                maxLength={15}
+              />
+            </div>
 
-          <div className="flex gap-2">
-            <input
-              type="text"
-              value={roomCode}
-              onChange={(e) => setRoomCode(e.target.value)}
-              className="flex-1 bg-slate-700 text-white border border-slate-600 rounded-lg px-3 py-2 focus:outline-none focus:border-indigo-500 font-mono text-xs"
-              placeholder="Paste Room Code"
-            />
-            <button
-              onClick={() => handleJoin()}
-              className="bg-green-600 hover:bg-green-700 px-5 rounded-lg font-bold text-sm transition-colors"
-            >
-              Join
-            </button>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                onClick={handleHost}
+                className={`${themeStyle.accentBtn} py-2.5 rounded-xl font-black text-sm flex items-center justify-center gap-2 transition-all shadow-md`}
+              >
+                <Wifi size={16} /> Host Game
+              </button>
+              <button
+                onClick={handleOffline}
+                className="bg-black/15 hover:bg-black/25 py-2.5 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-colors border border-black/15"
+              >
+                <WifiOff size={16} /> Offline Mode
+              </button>
+            </div>
+
+            {activeRooms.length > 0 && (
+              <div className="pt-2">
+                <h3
+                  className={`text-xs font-black uppercase tracking-wider mb-2 flex items-center gap-1.5 ${themeStyle.subTextColor}`}
+                >
+                  <Radio size={14} className="text-green-500 animate-pulse" />{" "}
+                  Active Rooms
+                </h3>
+                <div className="space-y-1.5">
+                  {activeRooms.map((room) => (
+                    <div
+                      key={room.hostId}
+                      className="flex items-center justify-between bg-black/10 border border-black/10 p-2.5 rounded-xl"
+                    >
+                      <span className="font-bold text-xs">
+                        {room.hostName}'s room
+                      </span>
+                      <button
+                        onClick={() => handleJoin(room.hostId)}
+                        className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded-lg text-xs font-black transition-colors"
+                      >
+                        Join
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="relative flex py-1 items-center">
+              <div className="flex-grow border-t border-black/15"></div>
+              <span
+                className={`flex-shrink-0 mx-3 text-[10px] uppercase font-black tracking-wider ${themeStyle.subTextColor}`}
+              >
+                OR JOIN WITH CODE
+              </span>
+              <div className="flex-grow border-t border-black/15"></div>
+            </div>
+
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={roomCode}
+                onChange={(e) => setRoomCode(e.target.value)}
+                className={`flex-1 ${themeStyle.inputBg} border ${themeStyle.inputBorder} rounded-xl px-3 py-2 font-mono text-xs outline-none`}
+                placeholder="Paste Room Code"
+              />
+              <button
+                onClick={() => handleJoin()}
+                className="bg-green-600 hover:bg-green-700 text-white px-5 rounded-xl font-black text-sm transition-colors shadow-md"
+              >
+                Join
+              </button>
+            </div>
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 };

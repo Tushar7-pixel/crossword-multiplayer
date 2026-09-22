@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { GameState, Player, CellCoord, FoundLine, GameSettings, ThemeType } from '../types/game';
+import type { GameState, Player, CellCoord, FoundLine, GameSettings, ThemeType, FontType } from '../types/game';
 import { generateGrid } from '../lib/gridGenerator';
 import { WORD_COLLECTIONS } from '../lib/wordCollections';
 
@@ -7,6 +7,7 @@ interface GameStore extends GameState {
     setGameState: (state: Partial<GameState>) => void;
     updateSettings: (settings: Partial<GameSettings>) => void;
     setLocalTheme: (theme: ThemeType) => void;
+    setLocalFont: (font: FontType) => void; // <-- NEW
     addPlayer: (player: Player) => void;
     removePlayer: (playerId: string) => void;
     updatePlayerScore: (playerId: string, points: number) => void;
@@ -23,6 +24,8 @@ const initialState: GameState = {
     wordsPerRound: 5,
     theme: 'neon',
     localTheme: undefined,
+    font: 'comic',
+    localFont: undefined,
     players: {},
     board: [],
     wordsToFind: [],
@@ -35,15 +38,16 @@ const initialState: GameState = {
 export const useGameStore = create<GameStore>((set) => ({
     ...initialState,
 
-    // Preserve localTheme when syncing remote state from host
     setGameState: (newState) =>
         set((state) => ({
             ...state,
             ...newState,
             localTheme: state.localTheme,
+            localFont: state.localFont,
         })),
 
     setLocalTheme: (theme) => set({ localTheme: theme }),
+    setLocalFont: (font) => set({ localFont: font }),
 
     updateSettings: (newSettings) => set((state) => ({ ...state, ...newSettings })),
 
@@ -98,19 +102,14 @@ export const useGameStore = create<GameStore>((set) => ({
             const count = customSettings?.wordsPerRound || state.wordsPerRound;
             const rounds = customSettings?.totalRounds || state.totalRounds;
             const defaultTheme = customSettings?.theme || state.theme;
+            const defaultFont = customSettings?.font || state.font;
 
-            // 1. Gather words across ALL selected collections
-            const combinedWordPool = Array.from(
-                new Set(
-                    activeCategories.flatMap((cat) => WORD_COLLECTIONS[cat] || [])
-                )
+            const combinedPool = Array.from(
+                new Set(activeCategories.flatMap((cat) => WORD_COLLECTIONS[cat] || []))
             );
-
-            // Fallback if pool is smaller than requested count
-            const pool = combinedWordPool.length > 0 ? combinedWordPool : WORD_COLLECTIONS.Animals;
+            const pool = combinedPool.length > 0 ? combinedPool : WORD_COLLECTIONS.Animals;
             const shuffled = [...pool].sort(() => 0.5 - Math.random()).slice(0, count);
 
-            // 2. Dynamic grid sizing (12x12 for 9-15 words, 10x10 for smaller sets)
             const gridSize = count > 8 ? 12 : 10;
             const { grid, placedWords } = generateGrid(shuffled, gridSize);
 
@@ -124,6 +123,7 @@ export const useGameStore = create<GameStore>((set) => ({
                 categories: activeCategories,
                 wordsPerRound: count,
                 theme: defaultTheme,
+                font: defaultFont,
                 board: grid,
                 wordsToFind: placedWords,
                 goldenWord: golden,

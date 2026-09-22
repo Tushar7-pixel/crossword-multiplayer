@@ -3,8 +3,11 @@ import { useGameStore } from "../../store/gameStore";
 import { CursorOverlay } from "./CursorOverlay";
 import type { CellCoord } from "../../types/game";
 import { useGameNetwork } from "../../hooks/useGameNetwork";
-import { THEMES } from "../../lib/themeStyles";
+// import { THEMES } from "../../lib/themeStyles";
 import { Sparkles, Palette } from "lucide-react";
+import { THEMES, FONTS } from "../../lib/themeStyles";
+import type { FontType } from "../../types/game";
+import { Type } from "lucide-react";
 
 export const GameBoard = ({
   network,
@@ -20,21 +23,27 @@ export const GameBoard = ({
     foundLines,
     board,
     theme,
+    localTheme,
+    setLocalTheme,
+    font,
+    localFont,
+    setLocalFont,
     currentRound,
     totalRounds,
-    localTheme, // <-- Player's local preference
-    setLocalTheme, // <-- Local setter
-    categories, // <-- Multiple categories
+    categories,
   } = useGameStore();
   // Prefer local theme if chosen, otherwise fall back to host's room theme
   const activeThemeKey = localTheme || theme;
-  const themeStyle = THEMES[theme] || THEMES.neon;
-  const playerList = Object.values(players);
+  const themeStyle = THEMES[activeThemeKey] || THEMES.neon;
 
+  const activeFontKey = localFont || font;
+  const fontStyle = FONTS[activeFontKey] || FONTS.comic;
+  const playerList = Object.values(players);
   const myPlayer =
     players[network.peerId] ||
     Object.values(players).find((p) => p.isHost && network.isHost) ||
     playerList[0];
+
   const myColor = myPlayer?.color || "#6366f1";
 
   const [startCell, setStartCell] = useState<CellCoord | null>(null);
@@ -54,11 +63,16 @@ export const GameBoard = ({
   // };
   // Toggles theme ONLY on this player's device
   const cycleMyTheme = () => {
-    const list: (keyof typeof THEMES)[] = ["neon", "farm", "classic"];
-    const nextTheme = list[(list.indexOf(activeThemeKey) + 1) % list.length];
-    setLocalTheme(nextTheme);
+    const list = ["neon", "farm", "classic"] as const;
+    const next = list[(list.indexOf(activeThemeKey) + 1) % list.length];
+    setLocalTheme(next);
   };
 
+  const cycleMyFont = () => {
+    const list: FontType[] = ["comic", "sans", "mono"];
+    const next = list[(list.indexOf(activeFontKey) + 1) % list.length];
+    setLocalFont(next);
+  };
   const handleSelectStart = (y: number, x: number) => {
     setIsDragging(true);
     const initial = { y, x };
@@ -141,10 +155,9 @@ export const GameBoard = ({
         onMouseUp={handleSelectEnd}
         onMouseLeave={handleSelectEnd}
       >
-        {/* Top Bar: Round & Category Tracker + Theme Switcher */}
-        {/* Top Bar */}
-        <div className="w-full max-w-2xl flex items-center justify-between mb-2 px-2">
-          <div className="flex items-center gap-2 flex-wrap">
+        {/* Top Bar with Theme & Font Quick Switchers */}
+        <div className="w-full max-w-2xl flex items-center justify-between mb-2 px-2 flex-wrap gap-2">
+          <div className="flex items-center gap-2">
             <span className="text-xs uppercase font-extrabold tracking-wider bg-black/30 backdrop-blur-md px-3 py-1 rounded-full border border-white/10">
               Round {currentRound} / {totalRounds}
             </span>
@@ -153,14 +166,21 @@ export const GameBoard = ({
             </span>
           </div>
 
-          <button
-            onClick={cycleMyTheme}
-            className="flex items-center gap-1.5 text-xs font-bold px-3 py-1 rounded-full bg-white/20 hover:bg-white/30 backdrop-blur-md transition-all shadow-sm"
-          >
-            <Palette size={14} /> My Theme: {themeStyle.name}
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={cycleMyTheme}
+              className="flex items-center gap-1 text-xs font-bold px-3 py-1 rounded-full bg-black/30 hover:bg-black/40 backdrop-blur-md transition-all border border-white/15"
+            >
+              <Palette size={13} /> {themeStyle.name}
+            </button>
+            <button
+              onClick={cycleMyFont}
+              className="flex items-center gap-1 text-xs font-bold px-3 py-1 rounded-full bg-black/30 hover:bg-black/40 backdrop-blur-md transition-all border border-white/15"
+            >
+              <Type size={13} /> {fontStyle.name}
+            </button>
+          </div>
         </div>
-
         {/* Selected Word Display */}
         <div
           className={`mb-3 h-8 flex items-center justify-center text-2xl sm:text-3xl tracking-widest ${themeStyle.titleColor}`}

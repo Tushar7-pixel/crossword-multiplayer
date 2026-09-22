@@ -17,12 +17,14 @@ export type FoundLine = {
 };
 
 export type ThemeType = 'neon' | 'farm' | 'classic';
+export type FontType = 'comic' | 'sans' | 'mono'; // <-- NEW
 
 export type GameSettings = {
-    categories: string[]; // Multiple categories
+    categories: string[];
     wordsPerRound: number;
     totalRounds: number;
     theme: ThemeType;
+    font: FontType; // <-- NEW
 };
 
 export type GameState = {
@@ -31,8 +33,10 @@ export type GameState = {
     totalRounds: number;
     categories: string[];
     wordsPerRound: number;
-    theme: ThemeType; // Default room theme set by host
-    localTheme?: ThemeType; // Player's personal device override
+    theme: ThemeType;
+    localTheme?: ThemeType;
+    font: FontType; // <-- Room default
+    localFont?: FontType; // <-- Personal device override
     players: Record<string, Player>;
     board: string[][];
     wordsToFind: string[];
