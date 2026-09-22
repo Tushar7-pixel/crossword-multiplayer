@@ -19,7 +19,7 @@ interface LobbyProps {
 export const Lobby: React.FC<LobbyProps> = ({ network }) => {
   const { peerId, isHost, hostGame, joinGame, broadcastState, kickPlayer } =
     network;
-  const { players, setGameState } = useGameStore();
+  const { players } = useGameStore();
 
   const [name, setName] = useState("");
   const [roomCode, setRoomCode] = useState("");

@@ -13,7 +13,7 @@ export const useRoomDiscovery = (isHost: boolean, hostId: string, hostName: stri
         const channel = new BroadcastChannel('crossword_room_discovery');
 
         // 1. If this player is the Host, broadcast heartbeat every 2 seconds
-        let interval: NodeJS.Timeout;
+        let interval: any;
         if (isHost && hostId && hostName) {
             const broadcast = () => {
                 channel.postMessage({
