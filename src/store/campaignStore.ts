@@ -20,13 +20,19 @@ export interface LevelConfig {
 const CAMPAIGN_STORAGE_KEY = 'crossword_offline_campaign_v1';
 const CAMPAIGN_USED_WORDS_KEY = 'crossword_campaign_used_words_v1';
 
+// 20 Progressive Campaign Levels (Scaled by 1.5x for a balanced 3-round experience)
 export const CAMPAIGN_LEVELS: LevelConfig[] = Array.from({ length: 20 }, (_, i) => {
     const level = i + 1;
     const wordsPerRound = level <= 5 ? 4 : level <= 12 ? 5 : 6;
     const gridSize = wordsPerRound > 5 ? 12 : 10;
-    const threeStarTime = 40 + level * 5;
-    const twoStarTime = threeStarTime + 30;
-    const maxBudget = twoStarTime + 35; // Generous budget containing all 3 star tiers
+
+    // 1.5x scaled times (in seconds for all 3 rounds combined):
+    // Level 1: 3-Star ≤ 68s, 2-Star ≤ 113s, Total Budget = 165s
+    // Level 20: 3-Star ≤ 210s, 2-Star ≤ 255s, Total Budget = 310s
+    const baseTime = 40 + level * 5;
+    const threeStarTime = Math.round(baseTime * 1.5);
+    const twoStarTime = Math.round((baseTime + 30) * 1.5);
+    const maxBudget = Math.round((baseTime + 65) * 1.5);
 
     return { level, wordsPerRound, gridSize, threeStarTime, twoStarTime, maxBudget };
 });
