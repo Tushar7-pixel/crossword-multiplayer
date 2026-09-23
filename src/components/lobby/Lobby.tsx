@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { useGameStore } from "../../store/gameStore";
 import {
   Users,
@@ -8,19 +8,19 @@ import {
   Wifi,
   WifiOff,
   UserMinus,
-  Radio,
   Sparkles,
   Palette,
   Type,
+  Loader2,
+  ExternalLink,
 } from "lucide-react";
-import { useRoomDiscovery } from "../../hooks/useRoomDiscovery";
 import { WORD_COLLECTIONS } from "../../lib/wordCollections";
 import { THEMES, FONTS } from "../../lib/themeStyles";
 import type { ThemeType, FontType } from "../../types/game";
 import { useToastStore } from "../../store/toastStore";
-import { generateRandomName } from "../../lib/nameGenerator"; // <-- Add this import
+import { generateRandomName } from "../../lib/nameGenerator";
+
 interface LobbyProps {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   network: any;
 }
 
@@ -28,12 +28,14 @@ export const Lobby: React.FC<LobbyProps> = ({ network }) => {
   const {
     peerId,
     isHost,
+    connectionStatus,
     hostGame,
     joinGame,
     broadcastState,
     broadcastSettingsChange,
     kickPlayer,
   } = network;
+
   const {
     players,
     categories,
@@ -45,9 +47,11 @@ export const Lobby: React.FC<LobbyProps> = ({ network }) => {
     font,
     localFont,
     setLocalFont,
+    setGameState,
   } = useGameStore();
+
   const { showToast } = useToastStore();
-  // const [name, setName] = useState("");
+
   const [roomCode, setRoomCode] = useState(() => {
     return new URLSearchParams(window.location.search).get("join") || "";
   });
@@ -55,17 +59,19 @@ export const Lobby: React.FC<LobbyProps> = ({ network }) => {
     new URLSearchParams(window.location.search).get("join"),
   );
   const [inWaitingRoom, setInWaitingRoom] = useState(false);
-
   const [name, setName] = useState(() => generateRandomName());
-  const { activeRooms } = useRoomDiscovery(isHost, peerId, name);
 
-  // Active theme and font (local overrides room default)
+  // Detect Instagram, Facebook, Messenger, and TikTok in-app webviews
+  const isInAppBrowser = useMemo(() => {
+    const ua = navigator.userAgent || navigator.vendor;
+    return /Instagram|FBAN|FBAV|Messenger|Bytedance|TikTok/i.test(ua);
+  }, []);
+
   const activeThemeKey = localTheme || theme;
-  const themeStyle = THEMES[activeThemeKey] || THEMES.neon;
+  const themeStyle = THEMES[activeThemeKey] || THEMES.farm;
 
   const activeFontKey = (localFont || font) as FontType;
-  const fontStyle = FONTS[activeFontKey] || FONTS.fredoka;
-  const { setGameState } = useGameStore();
+  const fontStyle = FONTS[activeFontKey] || FONTS.hand;
 
   const handleOffline = () => {
     setGameState({ status: "campaign-select" });
@@ -90,17 +96,12 @@ export const Lobby: React.FC<LobbyProps> = ({ network }) => {
       showToast("Room code is required to join", "warning");
       return;
     }
-    joinGame(code, name);
-    setInWaitingRoom(true);
-  };
 
-  // const handleOffline = () => {
-  //   if (!name.trim()) {
-  //     showToast("Please enter your name for offline mode", "warning");
-  //     return;
-  //   }
-  //   network.startOfflineGame(name);
-  // };
+    // Only transitions to waiting room once the connection confirms open
+    joinGame(code, name, () => {
+      setInWaitingRoom(true);
+    });
+  };
 
   const toggleCategory = (cat: string) => {
     let next: string[];
@@ -136,23 +137,6 @@ export const Lobby: React.FC<LobbyProps> = ({ network }) => {
     broadcastState();
   };
 
-  // Inside src/components/lobby/Lobby.tsx:
-
-  // Rule 3: Allow selection of up to 4 categories maximum
-  // const toggleCategory = (cat: string) => {
-  //   let next: string[];
-  //   if (categories.includes(cat)) {
-  //     if (categories.length === 1) return; // Keep at least one selected
-  //     next = categories.filter((c) => c !== cat);
-  //   } else {
-  //     if (categories.length >= 4) {
-  //       alert("You can select up to 4 categories maximum.");
-  //       return;
-  //     }
-  //     next = [...categories, cat];
-  //   }
-  //   broadcastSettingsChange({ categories: next });
-  // };
   const cycleTheme = () => {
     const list: ThemeType[] = ["neon", "farm", "classic"];
     const next = list[(list.indexOf(activeThemeKey) + 1) % list.length];
@@ -169,23 +153,24 @@ export const Lobby: React.FC<LobbyProps> = ({ network }) => {
     if (isHost) broadcastSettingsChange({ font: next });
   };
 
-  // const copyRoomCode = () => {
-  //   navigator.clipboard.writeText(peerId);
-  //   alert("Room code copied to clipboard!");
-  // };
-
-  // const copyInviteLink = () => {
-  //   const inviteUrl = `${window.location.origin}${window.location.pathname}?join=${peerId}`;
-  //   navigator.clipboard.writeText(inviteUrl);
-  //   alert("Invite link copied!");
-  // };
-
   return (
     <div
       className={`flex flex-col items-center justify-center min-h-screen ${themeStyle.bg} ${themeStyle.textColor} transition-colors duration-500 p-4`}
       style={{ fontFamily: fontStyle.fontFamily }}
     >
-      {/* Top Floating Bar: Personal Theme & Font Quick Switcher */}
+      {/* Warning banner when opened inside Instagram/WhatsApp WebViews */}
+      {isInAppBrowser && (
+        <div className="w-full max-w-md bg-amber-500 text-black px-4 py-2.5 rounded-2xl mb-4 font-black text-xs flex items-center gap-2 shadow-xl animate-pulse">
+          <ExternalLink size={18} className="shrink-0" />
+          <span>
+            You are in Instagram's browser. Tap the <strong>3 dots (⋮)</strong>{" "}
+            in the corner and select <strong>Open in Chrome / Browser</strong>{" "}
+            for multiplayer to work.
+          </span>
+        </div>
+      )}
+
+      {/* Top Floating Bar */}
       <div className="w-full max-w-lg flex items-center justify-between mb-4 px-2">
         <button
           onClick={cycleTheme}
@@ -219,7 +204,7 @@ export const Lobby: React.FC<LobbyProps> = ({ network }) => {
             <div className="mb-4 p-3 bg-black/10 rounded-2xl text-center border border-black/10">
               <div className="flex items-center justify-center gap-2 mb-2">
                 <span className="text-xs font-mono px-3 py-1.5 rounded-lg max-w-[200px] truncate bg-black/20 font-bold">
-                  {peerId || "Generating..."}
+                  {peerId || "Connecting..."}
                 </span>
                 <button
                   onClick={copyRoomCode}
@@ -240,7 +225,7 @@ export const Lobby: React.FC<LobbyProps> = ({ network }) => {
             <div
               className={`mb-4 text-center text-xs animate-pulse font-bold ${themeStyle.subTextColor}`}
             >
-              Waiting for host to launch the game...
+              Connected! Waiting for host to launch the game...
             </div>
           )}
 
@@ -285,7 +270,6 @@ export const Lobby: React.FC<LobbyProps> = ({ network }) => {
 
           {/* Word Collections */}
           <div className="space-y-3.5 bg-black/10 p-4 rounded-2xl border border-black/10 mb-5">
-            {/* Word Collections Header */}
             <div>
               <div className="flex justify-between items-center mb-2">
                 <label
@@ -407,8 +391,8 @@ export const Lobby: React.FC<LobbyProps> = ({ network }) => {
           </h1>
 
           {hasInviteLink && (
-            <div className="mb-5 p-3 bg-black/10 border border-black/15 rounded-xl text-xs font-bold text-center">
-              You've been invited! Enter your name to enter the game lobby.
+            <div className="mb-5 p-3 bg-amber-500/20 border border-amber-500/40 rounded-xl text-xs font-bold text-center">
+              You've been invited! Tap Join to connect to the room.
             </div>
           )}
 
@@ -432,11 +416,17 @@ export const Lobby: React.FC<LobbyProps> = ({ network }) => {
 
             <div className="grid grid-cols-2 gap-3">
               <button
+                disabled={connectionStatus === "connecting"}
                 onClick={handleHost}
                 style={{ fontFamily: fontStyle.fontFamily }}
-                className={`${themeStyle.accentBtn} py-2.5 rounded-xl font-black text-sm flex items-center justify-center gap-2 transition-all shadow-md`}
+                className={`${themeStyle.accentBtn} py-2.5 rounded-xl font-black text-sm flex items-center justify-center gap-2 transition-all shadow-md disabled:opacity-50`}
               >
-                <Wifi size={16} /> Host Game
+                {connectionStatus === "connecting" && isHost ? (
+                  <Loader2 size={16} className="animate-spin" />
+                ) : (
+                  <Wifi size={16} />
+                )}
+                Host Game
               </button>
               <button
                 onClick={handleOffline}
@@ -447,42 +437,12 @@ export const Lobby: React.FC<LobbyProps> = ({ network }) => {
               </button>
             </div>
 
-            {activeRooms.length > 0 && (
-              <div className="pt-2">
-                <h3
-                  className={`text-xs font-black uppercase tracking-wider mb-2 flex items-center gap-1.5 ${themeStyle.subTextColor}`}
-                >
-                  <Radio size={14} className="text-green-500 animate-pulse" />{" "}
-                  Active Rooms
-                </h3>
-                <div className="space-y-1.5">
-                  {activeRooms.map((room) => (
-                    <div
-                      key={room.hostId}
-                      className="flex items-center justify-between bg-black/10 border border-black/10 p-2.5 rounded-xl"
-                    >
-                      <span className="font-bold text-xs">
-                        {room.hostName}'s room
-                      </span>
-                      <button
-                        onClick={() => handleJoin(room.hostId)}
-                        style={{ fontFamily: fontStyle.fontFamily }}
-                        className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded-lg text-xs font-black transition-colors"
-                      >
-                        Join
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
             <div className="relative flex py-1 items-center">
               <div className="flex-grow border-t border-black/15"></div>
               <span
                 className={`flex-shrink-0 mx-3 text-[10px] uppercase font-black tracking-wider ${themeStyle.subTextColor}`}
               >
-                OR JOIN WITH CODE
+                OR JOIN WITH CODE / LINK
               </span>
               <div className="flex-grow border-t border-black/15"></div>
             </div>
@@ -496,11 +456,16 @@ export const Lobby: React.FC<LobbyProps> = ({ network }) => {
                 placeholder="Paste Room Code"
               />
               <button
+                disabled={connectionStatus === "connecting"}
                 onClick={() => handleJoin()}
                 style={{ fontFamily: fontStyle.fontFamily }}
-                className="bg-green-600 hover:bg-green-700 text-white px-5 rounded-xl font-black text-sm transition-colors shadow-md"
+                className="bg-green-600 hover:bg-green-700 text-white px-5 rounded-xl font-black text-sm transition-colors shadow-md disabled:opacity-50 flex items-center gap-1.5"
               >
-                Join
+                {connectionStatus === "connecting" && !isHost ? (
+                  <Loader2 size={15} className="animate-spin" />
+                ) : (
+                  "Join"
+                )}
               </button>
             </div>
           </div>

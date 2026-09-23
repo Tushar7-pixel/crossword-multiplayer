@@ -4,7 +4,7 @@ import { CursorOverlay } from "./CursorOverlay";
 import type { CellCoord, FontType } from "../../types/game";
 import { useGameNetwork } from "../../hooks/useGameNetwork";
 import { THEMES, FONTS } from "../../lib/themeStyles";
-import { Sparkles, Palette, Type } from "lucide-react";
+import { Sparkles, Palette, Type, CheckCircle2 } from "lucide-react";
 
 export const GameBoard = ({
   network,
@@ -30,10 +30,10 @@ export const GameBoard = ({
   } = useGameStore();
 
   const activeThemeKey = localTheme || theme;
-  const themeStyle = THEMES[activeThemeKey] || THEMES.neon;
+  const themeStyle = THEMES[activeThemeKey] || THEMES.farm;
 
   const activeFontKey = (localFont || font) as FontType;
-  const fontStyle = FONTS[activeFontKey] || FONTS.fredoka;
+  const fontStyle = FONTS[activeFontKey] || FONTS.hand;
 
   const playerList = Object.values(players);
   const myPlayer =
@@ -142,56 +142,58 @@ export const GameBoard = ({
     }
   };
 
+  const foundCount = Object.keys(foundWords).length;
+
   return (
     <CursorOverlay network={network}>
       <div
-        className={`h-[100dvh] max-h-[100dvh] w-full flex flex-col justify-between overflow-hidden ${themeStyle.bg} transition-colors duration-500 px-3 py-2 select-none touch-none ${themeStyle.textColor}`}
+        className={`h-[100dvh] max-h-[100dvh] w-full flex flex-col justify-evenly items-center overflow-hidden ${themeStyle.bg} transition-colors duration-500 px-3 py-2 select-none touch-none ${themeStyle.textColor}`}
         style={{ fontFamily: fontStyle.fontFamily }}
         onMouseUp={handleSelectEnd}
         onMouseLeave={handleSelectEnd}
       >
-        {/* SEGMENT 1: Top Bar (No category tag, clean single line) */}
-        <div className="w-full max-w-xl mx-auto flex flex-col items-center shrink-0">
-          <div className="w-full flex items-center justify-between mb-1 px-1">
-            <span className="text-xs uppercase font-black bg-black/25 backdrop-blur-md px-3 py-1 rounded-full border border-white/10">
-              Round {currentRound}/{totalRounds}
-            </span>
+        {/* SECTION 1: Top Bar & Quick Switchers */}
+        <div className="w-full max-w-md flex items-center justify-between px-0.5 shrink-0">
+          <span className="text-xs sm:text-sm uppercase font-black bg-black/25 backdrop-blur-md px-3.5 py-1.5 rounded-full border border-white/10 shadow-sm">
+            Round {currentRound}/{totalRounds}
+          </span>
 
-            <div className="flex items-center gap-1.5">
-              <button
-                onClick={cycleMyTheme}
-                className="flex items-center gap-1 text-xs font-bold px-3 py-1 rounded-full bg-black/20 hover:bg-black/30 backdrop-blur-md border border-white/15"
-              >
-                <Palette size={13} /> {themeStyle.name}
-              </button>
-              <button
-                onClick={cycleMyFont}
-                className="flex items-center gap-1 text-xs font-bold px-3 py-1 rounded-full bg-black/20 hover:bg-black/30 backdrop-blur-md border border-white/15"
-              >
-                <Type size={13} /> {fontStyle.name}
-              </button>
-            </div>
-          </div>
-
-          <div
-            className={`h-8 flex items-center justify-center text-xl sm:text-2xl font-black tracking-widest ${themeStyle.titleColor}`}
-          >
-            {currentWord || "SELECT A WORD"}
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={cycleMyTheme}
+              style={{ fontFamily: fontStyle.fontFamily }}
+              className="flex items-center gap-1 text-xs font-black px-3 py-1.5 rounded-full bg-black/20 hover:bg-black/30 backdrop-blur-md border border-white/15 transition-all shadow-sm"
+            >
+              <Palette size={13} /> {themeStyle.name}
+            </button>
+            <button
+              onClick={cycleMyFont}
+              style={{ fontFamily: fontStyle.fontFamily }}
+              className="flex items-center gap-1 text-xs font-black px-3 py-1.5 rounded-full bg-black/20 hover:bg-black/30 backdrop-blur-md border border-white/15 transition-all shadow-sm"
+            >
+              <Type size={13} /> {fontStyle.name}
+            </button>
           </div>
         </div>
 
-        {/* SEGMENT 2: Enlarged Grid Container */}
-        <div className="flex-1 min-h-0 w-full flex items-center justify-center py-1">
+        {/* SECTION 2: Current Word Selection & Game Board */}
+        <div className="w-full max-w-md flex flex-col items-center shrink-0">
+          <div
+            className={`h-7 flex items-center justify-center text-lg sm:text-xl font-black tracking-widest mb-1 ${themeStyle.titleColor}`}
+          >
+            {currentWord || "SELECT A WORD"}
+          </div>
+
           <div
             ref={gridContainerRef}
             onTouchStart={handleTouchStart}
             onTouchMove={handleTouchMove}
             onTouchEnd={handleSelectEnd}
-            className={`relative aspect-square w-full max-w-[min(96vw,56vh)] max-h-[min(96vw,56vh)] ${themeStyle.cardBg} p-2 sm:p-3.5 rounded-2xl sm:rounded-3xl border-2 ${themeStyle.border} select-none flex items-center justify-center`}
+            className={`relative aspect-square w-[min(94vw,48vh)] max-w-[420px] ${themeStyle.cardBg} p-2 sm:p-3 rounded-2xl sm:rounded-3xl border-2 ${themeStyle.border} select-none flex items-center justify-center shadow-lg`}
           >
             {/* SVG Strikethrough & Selection Layer */}
             <svg
-              className="absolute inset-0 w-full h-full pointer-events-none z-20 p-2 sm:p-3.5"
+              className="absolute inset-0 w-full h-full pointer-events-none z-20 p-2 sm:p-3"
               viewBox={`0 0 ${gridSize * 100} ${gridSize * 100}`}
               preserveAspectRatio="none"
             >
@@ -239,9 +241,9 @@ export const GameBoard = ({
               )}
             </svg>
 
-            {/* Matrix with font-family binding */}
+            {/* Matrix Cells */}
             <div
-              className="grid w-full h-full gap-1 sm:gap-1.5 relative z-10"
+              className="grid w-full h-full gap-1 relative z-10"
               style={{
                 gridTemplateColumns: `repeat(${gridSize}, minmax(0, 1fr))`,
                 gridTemplateRows: `repeat(${gridSize}, minmax(0, 1fr))`,
@@ -255,7 +257,7 @@ export const GameBoard = ({
                     (c) => c.y === y && c.x === x,
                   );
 
-                  let cellClass = `w-full h-full flex items-center justify-center rounded-lg sm:rounded-xl font-black text-[clamp(17px,4.8vw,26px)] uppercase tracking-tight cursor-pointer transition-all duration-150 ${themeStyle.cellDefault} ${themeStyle.cellHover} `;
+                  let cellClass = `w-full h-full flex items-center justify-center rounded-lg sm:rounded-xl font-black text-[clamp(17px,4.8vw,24px)] uppercase tracking-tight cursor-pointer transition-all duration-150 ${themeStyle.cellDefault} ${themeStyle.cellHover} `;
 
                   if (isCurrentlySelected) {
                     cellClass += "scale-105 shadow-md !border-white z-30";
@@ -283,84 +285,105 @@ export const GameBoard = ({
           </div>
         </div>
 
-        {/* SEGMENT 3: Word Target Bank (Larger words & badges) */}
-        <div className="w-full max-w-xl mx-auto shrink-0 max-h-[17vh] overflow-y-auto px-1 py-1 scrollbar-thin">
-          <div className="flex flex-wrap justify-center gap-2">
-            {wordsToFind.map((word) => {
-              const finderId = foundWords[word];
-              const finder = finderId ? players[finderId] : null;
-              const isGolden = word === goldenWord;
+        {/* SECTION 3: Dedicated Words to Find Tray */}
+        <div className="w-full max-w-md shrink-0 px-0.5">
+          <div
+            className={`${themeStyle.cardBg} border-2 ${themeStyle.border} rounded-2xl p-2.5 sm:p-3 shadow-md`}
+          >
+            <div className="flex items-center justify-between text-[11px] font-black uppercase tracking-wider mb-2 opacity-75">
+              <span>Words to Find</span>
+              <span>
+                {foundCount} / {wordsToFind.length} Found
+              </span>
+            </div>
 
-              let badgeStyle = "bg-black/30 border border-white/20 text-white";
-              if (isGolden && !finder) {
-                badgeStyle =
-                  "bg-gradient-to-r from-amber-500 to-yellow-400 text-black border-yellow-200 shadow-[0_0_14px_rgba(245,158,11,0.6)] font-black animate-pulse";
-              } else if (finder) {
-                badgeStyle =
-                  "bg-black/20 text-white/40 line-through border-transparent";
-              }
+            <div className="flex flex-wrap justify-center gap-1.5 sm:gap-2 max-h-[14vh] overflow-y-auto scrollbar-thin">
+              {wordsToFind.map((word) => {
+                const finderId = foundWords[word];
+                const finder = finderId ? players[finderId] : null;
+                const isGolden = word === goldenWord;
 
+                let badgeStyle =
+                  "bg-black/20 border-black/10 text-current hover:bg-black/30";
+                if (isGolden && !finder) {
+                  badgeStyle =
+                    "bg-gradient-to-r from-amber-500 to-yellow-400 text-black border-yellow-200 shadow-[0_0_12px_rgba(245,158,11,0.5)] font-black animate-pulse";
+                } else if (finder) {
+                  badgeStyle =
+                    "bg-black/15 text-white/40 line-through border-transparent";
+                }
+
+                return (
+                  <div
+                    key={word}
+                    className={`flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs sm:text-sm font-black border tracking-wide transition-all ${badgeStyle}`}
+                    style={finder ? { borderColor: `${finder.color}80` } : {}}
+                  >
+                    {isGolden && !finder && (
+                      <Sparkles
+                        size={13}
+                        className="text-amber-950 fill-amber-950 shrink-0"
+                      />
+                    )}
+                    {finder && (
+                      <CheckCircle2
+                        size={13}
+                        className="text-emerald-400 shrink-0"
+                      />
+                    )}
+                    <span>{word}</span>
+
+                    {isGolden && !finder && (
+                      <span className="text-[9px] bg-amber-950/20 text-amber-950 px-1 rounded font-black">
+                        5P
+                      </span>
+                    )}
+
+                    {finder && (
+                      <span
+                        className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded-md text-white font-extrabold ml-0.5 shadow-sm"
+                        style={{ backgroundColor: finder.color }}
+                      >
+                        {finder.name} {isGolden ? "+5" : "+2"}
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+
+        {/* SECTION 4: Enlarged Players Scoreboard HUD */}
+        <div className="w-full max-w-md shrink-0 px-0.5">
+          <div className="flex flex-wrap gap-2 justify-center w-full">
+            {playerList.map((p) => {
+              const isMe = p.id === myPlayer?.id;
               return (
                 <div
-                  key={word}
-                  className={`flex items-center gap-1.5 px-3.5 py-1 rounded-full text-xs sm:text-base font-black border tracking-wide transition-all ${badgeStyle}`}
-                  style={finder ? { borderColor: `${finder.color}80` } : {}}
+                  key={p.id}
+                  className={`flex items-center gap-2 px-3 py-1.5 rounded-xl bg-black/30 backdrop-blur-md border-b-2 shadow-sm transition-all ${
+                    isMe ? "ring-1 ring-white/30" : ""
+                  }`}
+                  style={{ borderColor: p.color }}
                 >
-                  {isGolden && (
-                    <Sparkles
-                      size={15}
-                      className={
-                        finder
-                          ? "text-gray-400"
-                          : "text-amber-950 fill-amber-950"
-                      }
-                    />
-                  )}
-                  <span>{word}</span>
-
-                  {isGolden && !finder && (
-                    <span className="text-[10px] sm:text-xs bg-amber-900/30 text-amber-950 px-1.5 py-0.5 rounded font-black ml-0.5">
-                      5P
-                    </span>
-                  )}
-
-                  {finder && (
-                    <span
-                      className="text-[10px] sm:text-xs uppercase tracking-wider px-2 py-0.5 rounded-full text-white font-extrabold ml-1 shadow-sm"
-                      style={{ backgroundColor: finder.color }}
-                    >
-                      {finder.name} {isGolden ? "(+5)" : "(+2)"}
-                    </span>
-                  )}
+                  <div
+                    className="w-3.5 h-3.5 rounded-full shadow-sm shrink-0"
+                    style={{ backgroundColor: p.color }}
+                  />
+                  <span className="font-extrabold text-xs sm:text-sm truncate max-w-[110px]">
+                    {p.name} {isMe && "(You)"}
+                  </span>
+                  <span
+                    className="text-sm sm:text-base font-black ml-0.5"
+                    style={{ color: p.color }}
+                  >
+                    {p.score}
+                  </span>
                 </div>
               );
             })}
           </div>
-        </div>
-
-        {/* SEGMENT 4: Prominent Scores Podium */}
-        <div className="flex flex-wrap gap-2.5 w-full max-w-xl mx-auto justify-center shrink-0 pt-1 pb-1">
-          {playerList.map((p) => (
-            <div
-              key={p.id}
-              className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-black/40 backdrop-blur-md border-b-2 shadow-sm"
-              style={{ borderColor: p.color }}
-            >
-              <div
-                className="w-3 h-3 rounded-full shadow-sm"
-                style={{ backgroundColor: p.color }}
-              />
-              <span className="font-extrabold text-xs sm:text-base truncate max-w-[120px]">
-                {p.name}
-              </span>
-              <span
-                className="text-sm sm:text-lg font-black ml-1"
-                style={{ color: p.color }}
-              >
-                {p.score}
-              </span>
-            </div>
-          ))}
         </div>
       </div>
     </CursorOverlay>

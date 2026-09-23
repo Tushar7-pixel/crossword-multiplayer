@@ -3,11 +3,39 @@ import Peer, { type DataConnection } from 'peerjs';
 import { useGameStore } from '../store/gameStore';
 import type { SocketAction, GameSettings } from '../types/game';
 import { toast } from '../store/toastStore';
+
 const PLAYER_COLORS = ['#ef4444', '#3b82f6', '#22c55e', '#eab308', '#a855f7'];
+
+// Free public STUN and OpenRelay TURN servers to bypass cellular firewalls
+const PEER_CONFIG = {
+    config: {
+        iceServers: [
+            { urls: 'stun:stun.l.google.com:19302' },
+            { urls: 'stun:global.stun.twilio.com:3478' },
+            {
+                urls: 'turn:openrelay.metered.ca:80',
+                username: 'openrelayproject',
+                credential: 'openrelayproject',
+            },
+            {
+                urls: 'turn:openrelay.metered.ca:443',
+                username: 'openrelayproject',
+                credential: 'openrelayproject',
+            },
+            {
+                urls: 'turn:openrelay.metered.ca:443?transport=tcp',
+                username: 'openrelayproject',
+                credential: 'openrelayproject',
+            },
+        ],
+    },
+};
 
 export const useGameNetwork = () => {
     const [peerId, setPeerId] = useState<string>('');
     const [isHost, setIsHost] = useState(false);
+    const [connectionStatus, setConnectionStatus] = useState<'idle' | 'connecting' | 'connected' | 'error'>('idle');
+
     const isHostRef = useRef(false);
     const peerRef = useRef<Peer | null>(null);
     const connectionsRef = useRef<DataConnection[]>([]);
@@ -18,11 +46,15 @@ export const useGameNetwork = () => {
     const hostGame = (playerName: string) => {
         setIsHost(true);
         isHostRef.current = true;
-        const peer = new Peer();
+        setConnectionStatus('connecting');
+
+        if (peerRef.current) peerRef.current.destroy();
+        const peer = new Peer(PEER_CONFIG);
 
         peer.on('open', (id) => {
             setPeerId(id);
             peerRef.current = peer;
+            setConnectionStatus('connected');
             addPlayer({
                 id,
                 name: playerName,
@@ -52,22 +84,42 @@ export const useGameNetwork = () => {
                 });
             });
         });
+
+        peer.on('error', (err) => {
+            console.error('Peer host error:', err);
+            toast(`Network error: ${err.type}`, 'error');
+            setConnectionStatus('error');
+        });
     };
 
-    const joinGame = (hostId: string, playerName: string) => {
+    const joinGame = (hostId: string, playerName: string, onSuccess?: () => void) => {
         setIsHost(false);
         isHostRef.current = false;
-        const peer = new Peer();
+        setConnectionStatus('connecting');
+
+        if (peerRef.current) peerRef.current.destroy();
+        const peer = new Peer(PEER_CONFIG);
+
+        const connectionTimeout = setTimeout(() => {
+            if (connectionStatus !== 'connected') {
+                toast('Connection timed out. Ensure host is online and room code is correct.', 'error');
+                setConnectionStatus('error');
+            }
+        }, 12000);
 
         peer.on('open', (id) => {
             setPeerId(id);
             peerRef.current = peer;
 
-            const conn = peer.connect(hostId.trim(), { reliable: true });
+            const cleanHostId = hostId.trim();
+            const conn = peer.connect(cleanHostId, { reliable: true });
             hostConnectionRef.current = conn;
 
             conn.on('open', () => {
+                clearTimeout(connectionTimeout);
+                setConnectionStatus('connected');
                 conn.send({ type: 'JOIN_LOBBY', payload: { name: playerName } });
+                if (onSuccess) onSuccess();
             });
 
             conn.on('data', (data) => {
@@ -89,8 +141,27 @@ export const useGameNetwork = () => {
 
             conn.on('close', () => {
                 toast('Disconnected from Host', 'error');
+                setConnectionStatus('idle');
                 useGameStore.getState().resetSession();
             });
+
+            conn.on('error', (err) => {
+                clearTimeout(connectionTimeout);
+                console.error('Connection error:', err);
+                toast('Failed to connect to host.', 'error');
+                setConnectionStatus('error');
+            });
+        });
+
+        peer.on('error', (err) => {
+            clearTimeout(connectionTimeout);
+            console.error('Peer error:', err);
+            if (err.type === 'peer-unavailable') {
+                toast('Room not found or Host is offline.', 'error');
+            } else {
+                toast(`Network error: ${err.type}`, 'error');
+            }
+            setConnectionStatus('error');
         });
     };
 
@@ -116,7 +187,6 @@ export const useGameNetwork = () => {
             }
 
             case 'UPDATE_SETTINGS': {
-                // Any player can request a settings change
                 updateSettings(action.payload);
                 broadcastState();
                 break;
@@ -128,7 +198,6 @@ export const useGameNetwork = () => {
                 const isAlreadyFound = !!state.foundWords[word];
 
                 if (isValidWord && !isAlreadyFound) {
-                    // 5 points for Golden Word, 2 points for regular words
                     const points = word === state.goldenWord ? 5 : 2;
                     useGameStore.getState().markWordFound(word, senderId, cells);
                     useGameStore.getState().updatePlayerScore(senderId, points);
@@ -179,8 +248,6 @@ export const useGameNetwork = () => {
         }
     };
 
-    // Inside src/hooks/useGameNetwork.ts:
-
     const broadcastState = () => {
         if (!isHostRef.current) return;
         const {
@@ -188,7 +255,6 @@ export const useGameNetwork = () => {
             players, board, wordsToFind, goldenWord, foundWords, foundCells, foundLines,
         } = useGameStore.getState();
 
-        // safeState strictly excludes functions and player-local variables
         const safeState = {
             status, currentRound, totalRounds, categories, wordsPerRound, theme,
             players, board, wordsToFind, goldenWord, foundWords, foundCells, foundLines,
@@ -201,7 +267,6 @@ export const useGameNetwork = () => {
         });
     };
 
-    // Also ensure sendToHost routes correctly:
     const sendToHost = (action: SocketAction) => {
         if (isHostRef.current) {
             handleIncomingAction(action, { peer: peerRef.current?.id || 'local-player' } as DataConnection);
@@ -209,6 +274,7 @@ export const useGameNetwork = () => {
             hostConnectionRef.current.send(action);
         }
     };
+
     const broadcastSettingsChange = (newSettings: Partial<GameSettings>) => {
         updateSettings(newSettings);
         if (isHostRef.current) {
@@ -228,20 +294,16 @@ export const useGameNetwork = () => {
         useGameStore.getState().removePlayer(playerId);
         broadcastState();
     };
-    const startOfflineGame = (playerName: string) => {
-        setIsHost(true);
-        isHostRef.current = true;
-        setPeerId('local-player');
 
-        useGameStore.getState().addPlayer({
-            id: 'local-player',
-            name: playerName,
-            color: PLAYER_COLORS[0],
-            score: 0,
-            isHost: true,
-        });
-
-        useGameStore.getState().generateNewRound(1);
+    return {
+        peerId,
+        isHost,
+        connectionStatus,
+        hostGame,
+        joinGame,
+        sendToHost,
+        broadcastState,
+        broadcastSettingsChange,
+        kickPlayer,
     };
-    return { peerId, isHost, hostGame, joinGame, startOfflineGame, sendToHost, broadcastState, broadcastSettingsChange, kickPlayer };
 };
