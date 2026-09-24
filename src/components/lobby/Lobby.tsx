@@ -19,6 +19,7 @@ import { THEMES, FONTS } from "../../lib/themeStyles";
 import type { ThemeType, FontType } from "../../types/game";
 import { useToastStore } from "../../store/toastStore";
 import { generateRandomName } from "../../lib/nameGenerator";
+import { SoundToggle } from "../ui/SoundToggle";
 
 interface LobbyProps {
   network: any;
@@ -187,6 +188,7 @@ export const Lobby: React.FC<LobbyProps> = ({ network }) => {
         >
           <Type size={14} /> Font: {fontStyle.name}
         </button>
+        <SoundToggle showLabel={true} />
       </div>
 
       {inWaitingRoom ? (

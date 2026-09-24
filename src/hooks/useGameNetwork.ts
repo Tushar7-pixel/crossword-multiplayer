@@ -3,6 +3,7 @@ import Peer, { type DataConnection } from 'peerjs';
 import { useGameStore } from '../store/gameStore';
 import type { SocketAction, GameSettings } from '../types/game';
 import { toast } from '../store/toastStore';
+import { soundFx } from '../lib/audioFx';
 
 const PLAYER_COLORS = ['#ef4444', '#3b82f6', '#22c55e', '#eab308', '#a855f7'];
 
@@ -191,7 +192,13 @@ export const useGameNetwork = () => {
                 broadcastState();
                 break;
             }
-
+            case 'REMATCH_GAME': {
+                if (isHostRef.current) {
+                    useGameStore.getState().startRematch();
+                    broadcastState();
+                }
+                break;
+            }
             case 'WORD_FOUND': {
                 const { word, cells } = action.payload;
                 const isValidWord = state.wordsToFind.includes(word);
@@ -211,8 +218,10 @@ export const useGameNetwork = () => {
                     if (allWordsFound) {
                         setTimeout(() => {
                             if (updatedState.currentRound < updatedState.totalRounds) {
+                                soundFx.playLevelComplete();
                                 useGameStore.getState().generateNewRound(updatedState.currentRound + 1);
                             } else {
+                                soundFx.playLevelComplete();
                                 useGameStore.getState().setGameState({ status: 'scoreboard' });
                             }
                             broadcastState();
@@ -274,7 +283,14 @@ export const useGameNetwork = () => {
             hostConnectionRef.current.send(action);
         }
     };
-
+    const triggerRematch = () => {
+        if (isHostRef.current) {
+            useGameStore.getState().startRematch();
+            broadcastState();
+        } else {
+            sendToHost({ type: 'REMATCH_GAME' });
+        }
+    };
     const broadcastSettingsChange = (newSettings: Partial<GameSettings>) => {
         updateSettings(newSettings);
         if (isHostRef.current) {
@@ -304,6 +320,6 @@ export const useGameNetwork = () => {
         sendToHost,
         broadcastState,
         broadcastSettingsChange,
-        kickPlayer,
+        kickPlayer, triggerRematch
     };
 };

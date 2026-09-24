@@ -5,7 +5,9 @@ import type { CellCoord, FontType } from "../../types/game";
 import { useGameNetwork } from "../../hooks/useGameNetwork";
 import { THEMES, FONTS } from "../../lib/themeStyles";
 import { Sparkles, Palette, Type, CheckCircle2 } from "lucide-react";
-
+import { haptic } from "../../lib/haptics";
+import { soundFx } from "../../lib/audioFx";
+import { SoundToggle } from "../ui/SoundToggle";
 export const GameBoard = ({
   network,
 }: {
@@ -76,7 +78,6 @@ export const GameBoard = ({
 
   const handleSelectMove = (y: number, x: number) => {
     if (!isDragging || !startCell) return;
-
     const dy = y - startCell.y;
     const dx = x - startCell.x;
     const absDy = Math.abs(dy);
@@ -98,6 +99,11 @@ export const GameBoard = ({
           x: startCell.x + i * stepX,
         });
       }
+      if (newPath.length !== selectionCoords.length) {
+        haptic.tick();
+        soundFx.playCellTick(newPath.length);
+        setSelectionCoords(newPath);
+      }
       setSelectionCoords(newPath);
     }
   };
@@ -112,7 +118,15 @@ export const GameBoard = ({
         payload: { word: currentWord, cells: selectionCoords },
       });
     }
+    const isGolden = currentWord === goldenWord;
 
+    if (isGolden) {
+      haptic.goldenFound();
+      soundFx.playGoldenFound();
+    } else {
+      haptic.wordFound();
+      soundFx.playWordFound();
+    }
     setStartCell(null);
     setSelectionCoords([]);
   };
@@ -173,6 +187,7 @@ export const GameBoard = ({
             >
               <Type size={13} /> {fontStyle.name}
             </button>
+            <SoundToggle />
           </div>
         </div>
 

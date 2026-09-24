@@ -53,7 +53,9 @@ export type GameState = {
 
 export type SocketAction =
     | { type: 'JOIN_LOBBY'; payload: { name: string } }
-    | { type: 'SYNC_STATE'; payload: GameState }
-    | { type: 'CURSOR_MOVE'; payload: CursorPosition }
+    | { type: 'UPDATE_SETTINGS'; payload: Partial<GameSettings> }
     | { type: 'WORD_FOUND'; payload: { word: string; cells: CellCoord[] } }
-    | { type: 'UPDATE_SETTINGS'; payload: Partial<GameSettings> };
+    | { type: 'CURSOR_MOVE'; payload: { userId?: string; x: number; y: number } }
+    | { type: 'SYNC_STATE'; payload: any }
+    | { type: 'REMATCH_GAME' }
+    | { type: 'EMOJI_TAUNT'; payload: { emoji: string; senderId: string; senderName: string; id: string } };

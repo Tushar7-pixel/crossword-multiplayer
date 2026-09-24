@@ -22,6 +22,9 @@ interface BonusNotice {
   text: string;
   type: "base" | "streak" | "golden";
 }
+import { haptic } from "../../lib/haptics";
+import { soundFx } from "../../lib/audioFx";
+import { SoundToggle } from "../ui/SoundToggle";
 
 export const CampaignGameBoard: React.FC = () => {
   const { theme, localTheme, font, localFont, setGameState } = useGameStore();
@@ -149,6 +152,11 @@ export const CampaignGameBoard: React.FC = () => {
           x: startCell.x + i * stepX,
         });
       }
+      if (newPath.length !== selectionCoords.length) {
+        haptic.tick();
+        soundFx.playCellTick(newPath.length);
+        setSelectionCoords(newPath);
+      }
       setSelectionCoords(newPath);
     }
   };
@@ -181,7 +189,13 @@ export const CampaignGameBoard: React.FC = () => {
       }
 
       setElapsedTime((prev) => Math.max(0, prev - secondsCredited));
-
+      if (isGolden) {
+        haptic.goldenFound();
+        soundFx.playGoldenFound();
+      } else {
+        haptic.wordFound();
+        soundFx.playWordFound();
+      }
       if (isGolden) {
         setBonusNotice({
           id: Date.now(),
@@ -229,6 +243,7 @@ export const CampaignGameBoard: React.FC = () => {
         } else {
           const stars = saveLevelResult(activeLevel, elapsedTime);
           setEarnedStars(stars);
+          soundFx.playLevelComplete();
           setIsLevelFinished(true);
         }
       }
@@ -351,7 +366,7 @@ export const CampaignGameBoard: React.FC = () => {
           <span className="text-xs uppercase font-black bg-amber-500/20 border border-amber-500/40 text-amber-500 px-3.5 py-1 rounded-full">
             Level {activeLevel} • Round {currentRound}/3
           </span>
-
+          <SoundToggle />
           <button
             onClick={restartCurrentLevel}
             className="p-1.5 rounded-full bg-black/20 hover:bg-black/30 border border-white/20"

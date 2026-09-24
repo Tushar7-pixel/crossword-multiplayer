@@ -37,6 +37,7 @@ interface GameStore extends GameState {
     markWordFound: (word: string, playerId: string, cells: CellCoord[]) => void;
     generateNewRound: (roundNumber: number, settings?: Partial<GameSettings>) => void;
     resetSession: () => void;
+    startRematch: () => void;
 }
 
 const initialState: GameState = {
@@ -97,7 +98,18 @@ export const useGameStore = create<GameStore>((set, get) => ({
                 },
             };
         }),
+    // Inside useGameStore definition in src/store/gameStore.ts:
+    startRematch: () => {
+        const state = get();
+        // Reset each player's score to 0
+        const resetPlayers: Record<string, Player> = {};
+        Object.values(state.players).forEach((p) => {
+            resetPlayers[p.id] = { ...p, score: 0 };
+        });
 
+        set({ players: resetPlayers });
+        get().generateNewRound(1);
+    },
     markWordFound: (word, playerId, cells) =>
         set((state) => {
             const newFoundCells = { ...state.foundCells };
