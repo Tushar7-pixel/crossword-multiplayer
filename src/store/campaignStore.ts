@@ -2,10 +2,18 @@ import { create } from 'zustand';
 import { WORD_COLLECTIONS } from '../lib/wordCollections';
 import { generateGrid } from '../lib/gridGenerator';
 
+export type LevelModifier = 'none' | 'anagram' | 'fog' | 'hazard' | 'hybrid';
+
 export interface LevelRecord {
     stars: number;
     bestTime: number;
     completed: boolean;
+}
+interface CampaignStore {
+    progress: Record<number, LevelRecord>;
+    activeLevel: number;
+    setActiveLevel: (level: number) => void;
+    saveLevelResult: (level: number, timeSpent: number, starsOverride?: number) => number;
 }
 
 export interface LevelConfig {
@@ -14,27 +22,61 @@ export interface LevelConfig {
     gridSize: number;
     threeStarTime: number;
     twoStarTime: number;
-    maxBudget: number; // Total budget representing 100% of the countdown bar
+    maxBudget: number;
+    phase: 1 | 2;
+    modifier: LevelModifier;
+    chapterTitle?: string;
 }
 
+export const PHASE_2_UNLOCK_STARS = 10;
 const CAMPAIGN_STORAGE_KEY = 'crossword_offline_campaign_v1';
 const CAMPAIGN_USED_WORDS_KEY = 'crossword_campaign_used_words_v1';
 
-// 20 Progressive Campaign Levels (Scaled by 1.5x for a balanced 3-round experience)
-export const CAMPAIGN_LEVELS: LevelConfig[] = Array.from({ length: 20 }, (_, i) => {
+// 40 Progressive Campaign Levels (Phase 1: 1-20, Phase 2: 21-40)
+export const CAMPAIGN_LEVELS: LevelConfig[] = Array.from({ length: 40 }, (_, i) => {
     const level = i + 1;
-    const wordsPerRound = level <= 5 ? 4 : level <= 12 ? 5 : 6;
+    const isPhase2 = level > 20;
+    const phase: 1 | 2 = isPhase2 ? 2 : 1;
+
+    // Words per round and grid sizing
+    const wordsPerRound = level <= 5 ? 4 : level <= 20 ? 5 : level <= 30 ? 5 : 6;
     const gridSize = wordsPerRound > 5 ? 12 : 10;
 
-    // 1.5x scaled times (in seconds for all 3 rounds combined):
-    // Level 1: 3-Star ≤ 68s, 2-Star ≤ 113s, Total Budget = 165s
-    // Level 20: 3-Star ≤ 210s, 2-Star ≤ 255s, Total Budget = 310s
+    // 1.5x scaled times for comfortable 3-round completions
     const baseTime = 40 + level * 5;
     const threeStarTime = Math.round(baseTime * 1.5);
     const twoStarTime = Math.round((baseTime + 30) * 1.5);
     const maxBudget = Math.round((baseTime + 65) * 1.5);
 
-    return { level, wordsPerRound, gridSize, threeStarTime, twoStarTime, maxBudget };
+    // Phase 2 Themed Chapters (5 levels each)
+    let modifier: LevelModifier = 'none';
+    let chapterTitle: string | undefined;
+
+    if (level >= 21 && level <= 25) {
+        modifier = 'anagram';
+        chapterTitle = 'Cipher Protocol';
+    } else if (level >= 26 && level <= 30) {
+        modifier = 'fog';
+        chapterTitle = 'Eclipse Horizon';
+    } else if (level >= 31 && level <= 35) {
+        modifier = 'hazard';
+        chapterTitle = 'Voltage Overload';
+    } else if (level >= 36 && level <= 40) {
+        modifier = 'hybrid';
+        chapterTitle = 'The Gauntlet';
+    }
+
+    return {
+        level,
+        wordsPerRound,
+        gridSize,
+        threeStarTime,
+        twoStarTime,
+        maxBudget,
+        phase,
+        modifier,
+        chapterTitle,
+    };
 });
 
 const loadSavedProgress = (): Record<number, LevelRecord> => {
@@ -107,7 +149,6 @@ export const generateCampaignRound = (
 
     const { grid, placedWords } = generateGrid(selectedWords, gridSize);
 
-    // Designate 1 word as the Golden Word during Round 3 (Final Round)
     const golden = isFinalRound && placedWords.length > 0
         ? placedWords[Math.floor(Math.random() * placedWords.length)]
         : null;
@@ -115,12 +156,9 @@ export const generateCampaignRound = (
     return { board: grid, wordsToFind: placedWords, goldenWord: golden };
 };
 
-interface CampaignStore {
-    progress: Record<number, LevelRecord>;
-    activeLevel: number;
-    setActiveLevel: (level: number) => void;
-    saveLevelResult: (level: number, timeSpent: number) => number;
-}
+
+
+// In src/store/campaignStore.ts:
 
 export const useCampaignStore = create<CampaignStore>((set, get) => ({
     progress: loadSavedProgress(),
@@ -128,10 +166,15 @@ export const useCampaignStore = create<CampaignStore>((set, get) => ({
 
     setActiveLevel: (level) => set({ activeLevel: level }),
 
-    saveLevelResult: (level, timeSpent) => {
+    saveLevelResult: (level, timeSpent, starsOverride?: number) => {
         const config = CAMPAIGN_LEVELS.find((l) => l.level === level) || CAMPAIGN_LEVELS[0];
         let stars = 1;
-        if (timeSpent <= config.threeStarTime) {
+
+        if (starsOverride !== undefined) {
+            stars = starsOverride;
+        } else if (config.phase === 2) {
+            stars = 3;
+        } else if (timeSpent <= config.threeStarTime) {
             stars = 3;
         } else if (timeSpent <= config.twoStarTime) {
             stars = 2;

@@ -88,6 +88,52 @@ class SoundSynthesizer {
         });
     }
 
+    // Short-circuit electric shock on touching a hazard tile with an invalid word
+    playVoltageShock() {
+        if (!this.isEnabled()) return;
+        this.initCtx();
+        if (!this.ctx) return;
+
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(140, this.ctx.currentTime);
+        osc.frequency.linearRampToValueAtTime(60, this.ctx.currentTime + 0.2);
+
+        gain.gain.setValueAtTime(0.2, this.ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.2);
+
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+
+        osc.start();
+        osc.stop(this.ctx.currentTime + 0.2);
+    }
+
+    // High-frequency resonant pulse when safely routing a word through a voltage tile
+    playVoltageDisarm() {
+        if (!this.isEnabled()) return;
+        this.initCtx();
+        if (!this.ctx) return;
+
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(880, this.ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(1760, this.ctx.currentTime + 0.25);
+
+        gain.gain.setValueAtTime(0.15, this.ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.28);
+
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+
+        osc.start();
+        osc.stop(this.ctx.currentTime + 0.28);
+    }
+
     playLevelComplete() {
         if (!this.isEnabled()) return;
         this.initCtx();
@@ -104,6 +150,31 @@ class SoundSynthesizer {
             gain.connect(this.ctx!.destination);
             osc.start(this.ctx!.currentTime + i * 0.1);
             osc.stop(this.ctx!.currentTime + i * 0.1 + 0.55);
+        });
+    }
+
+    // Grand celebratory orchestration for conquering all 40 levels
+    playGrandVictory() {
+        if (!this.isEnabled()) return;
+        this.initCtx();
+        if (!this.ctx) return;
+
+        const melody = [523.25, 659.25, 783.99, 1046.5, 880, 1046.5, 1318.51];
+        melody.forEach((freq, idx) => {
+            const osc = this.ctx!.createOscillator();
+            const gain = this.ctx!.createGain();
+
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(freq, this.ctx!.currentTime + idx * 0.12);
+
+            gain.gain.setValueAtTime(0.2, this.ctx!.currentTime + idx * 0.12);
+            gain.gain.exponentialRampToValueAtTime(0.001, this.ctx!.currentTime + idx * 0.12 + 0.6);
+
+            osc.connect(gain);
+            gain.connect(this.ctx!.destination);
+
+            osc.start(this.ctx!.currentTime + idx * 0.12);
+            osc.stop(this.ctx!.currentTime + idx * 0.12 + 0.65);
         });
     }
 }
