@@ -208,13 +208,11 @@ export const CampaignGameBoard: React.FC = () => {
     .map((c) => board[c.y]?.[c.x] || "")
     .join("");
 
-  // Projects the light focal point ABOVE the finger so fingers never cover the letters
+  // Projects the light focal point ABOVE the finger so letters are never hidden
   const getFlashlightFocalPoint = (cell: CellCoord) => {
     if (cell.y <= 1) {
-      // Near top of grid: illuminate around and slightly below
       return { y: cell.y, x: cell.x };
     }
-    // Normal: illuminate 1.65 rows directly above finger
     return { y: cell.y - 1.65, x: cell.x };
   };
 
@@ -236,7 +234,6 @@ export const CampaignGameBoard: React.FC = () => {
     return false;
   };
 
-  // Letters currently illuminated by the flashlight for the Scout HUD
   const scoutedLetters = useMemo(() => {
     if (!isFogActive || !isInspectMode || !activeTouchCell) return [];
     const focal = getFlashlightFocalPoint(activeTouchCell);
@@ -809,7 +806,7 @@ export const CampaignGameBoard: React.FC = () => {
 
             <span className="text-[10px] font-black uppercase tracking-wider text-amber-300 truncate">
               {isInspectMode
-                ? "Light projects above finger"
+                ? "Spotlight illuminates ahead"
                 : "Swipe to connect"}
             </span>
           </div>
@@ -827,16 +824,18 @@ export const CampaignGameBoard: React.FC = () => {
           <div className="h-6 flex items-center justify-center text-xs sm:text-sm font-black tracking-widest mb-1 text-center">
             {isInspectMode ? (
               activeTouchCell && scoutedLetters.length > 0 ? (
-                <div className="flex items-center gap-1 bg-amber-400/20 border border-amber-400/40 px-3 py-0.5 rounded-full text-amber-300 animate-in fade-in">
-                  <Search size={11} />
-                  <span>BEAM:</span>
-                  <span className="font-mono text-white tracking-widest font-black text-sm">
+                <div className="flex items-center gap-1.5 bg-black/40 backdrop-blur-md border border-white/20 px-3.5 py-0.5 rounded-full text-current animate-in fade-in shadow-md">
+                  <Search size={12} className="text-amber-400" />
+                  <span className="text-[11px] opacity-75 font-bold uppercase tracking-wider">
+                    BEAM:
+                  </span>
+                  <span className="font-mono tracking-widest font-black text-sm text-amber-300">
                     {scoutedLetters.join(" ")}
                   </span>
                 </div>
               ) : (
                 <span className="opacity-60 text-[11px] uppercase tracking-wider">
-                  Touch & drag to shine beam above finger
+                  Drag across grid to illuminate dark tiles
                 </span>
               )
             ) : (
@@ -847,45 +846,47 @@ export const CampaignGameBoard: React.FC = () => {
           </div>
         )}
 
-        {/* Board Container */}
+        {/* Board Container: Pitch-Dark in Fog Mode */}
         <div
           onTouchStart={handleTouchStart}
           onTouchMove={handleTouchMove}
           onTouchEnd={handleSelectEnd}
           className={`relative aspect-square w-[min(94vw,48vh)] max-w-[420px] ${
-            isFogActive ? "bg-slate-950/95" : themeStyle.cardBg
-          } p-2 sm:p-3 rounded-2xl sm:rounded-3xl border-2 ${themeStyle.border} select-none flex items-center justify-center shadow-lg transition-colors duration-500 overflow-hidden`}
+            isFogActive && isFogEngaged
+              ? "bg-[#070b14] border-slate-800/90 shadow-2xl"
+              : `${themeStyle.cardBg} border-2${themeStyle.border} shadow-lg`
+          } p-2 sm:p-3 rounded-2xl sm:rounded-3xl border-2 select-none flex items-center justify-center transition-colors duration-500 overflow-hidden`}
         >
-          {/* Visual Flashlight Beam Cone SVG */}
+          {/* Luminous Spotlight SVG Overlay */}
           {isFogActive && isInspectMode && activeTouchCell && focalPoint && (
             <svg
               className="absolute inset-0 w-full h-full pointer-events-none z-20"
               viewBox={`0 0 ${boardSize * 100} ${boardSize * 100}`}
             >
               <defs>
-                <radialGradient id="flashlightGlow" cx="50%" cy="50%" r="50%">
-                  <stop offset="0%" stopColor="#fbbf24" stopOpacity="0.45" />
-                  <stop offset="60%" stopColor="#f59e0b" stopOpacity="0.2" />
-                  <stop offset="100%" stopColor="#d97706" stopOpacity="0" />
+                <radialGradient id="spotlightGlow" cx="50%" cy="50%" r="50%">
+                  <stop offset="0%" stopColor="#ffffff" stopOpacity="0.4" />
+                  <stop offset="60%" stopColor="#ffffff" stopOpacity="0.15" />
+                  <stop offset="100%" stopColor="#ffffff" stopOpacity="0" />
                 </radialGradient>
               </defs>
 
-              {/* Upward Flashlight Beam Polygon */}
+              {/* Upward beam cone projecting from touch to spotlight */}
               <polygon
                 points={`
                   ${activeTouchCell.x * 100 + 50},${activeTouchCell.y * 100 + 50} 
-                  ${focalPoint.x * 100 - 90},${focalPoint.y * 100} 
-                  ${focalPoint.x * 100 + 190},${focalPoint.y * 100}
+                  ${focalPoint.x * 100 - 80},${focalPoint.y * 100 + 20} 
+                  ${focalPoint.x * 100 + 180},${focalPoint.y * 100 + 20}
                 `}
-                fill="url(#flashlightGlow)"
+                fill="url(#spotlightGlow)"
               />
 
-              {/* Radiant Spotlight Halo above finger */}
+              {/* Radiant Circular Spotlight Halo */}
               <circle
                 cx={focalPoint.x * 100 + 50}
                 cy={focalPoint.y * 100 + 50}
-                r="130"
-                fill="url(#flashlightGlow)"
+                r="135"
+                fill="url(#spotlightGlow)"
               />
             </svg>
           )}
@@ -925,22 +926,27 @@ export const CampaignGameBoard: React.FC = () => {
                   cellClass +=
                     "!bg-emerald-500/80 !text-white line-through opacity-90 shadow-[0_0_8px_rgba(16,185,129,0.5)] ";
                 } else if (!isVisible) {
+                  // Cloaked in Dark Night: pitch-dark rounded square
                   cellClass +=
-                    "bg-slate-900/90 border border-slate-800 text-transparent opacity-25 shadow-none ";
+                    "!bg-slate-900/90 !border-slate-800/50 text-transparent opacity-20 select-none shadow-none ";
                 } else if (isHazard && !isDisarmed) {
                   cellClass +=
-                    "bg-amber-500/20 border-2 border-amber-400/90 text-amber-200 shadow-[0_0_10px_rgba(245,158,11,0.5)] animate-pulse ";
+                    "bg-amber-500/20 border-2 border-amber-400 text-amber-500 dark:text-amber-300 animate-pulse ";
                 } else if (isHazard && isDisarmed) {
                   cellClass +=
-                    "bg-cyan-500/20 border border-cyan-400/60 text-cyan-200 opacity-80 ";
+                    "bg-cyan-500/15 border border-cyan-400/50 text-cyan-600 dark:text-cyan-300 opacity-80 ";
                 } else {
-                  cellClass += `${themeStyle.cellDefault} ${themeStyle.cellHover} ${
-                    isFogActive && isFogEngaged
-                      ? isFocalCenter
-                        ? "ring-2 ring-amber-300 !bg-amber-400/35 text-amber-100 shadow-[0_0_12px_rgba(251,191,36,0.7)] scale-105 z-20"
-                        : "ring-1 ring-amber-300/40 bg-amber-500/10 shadow-[0_0_6px_rgba(251,191,36,0.3)] text-amber-200"
-                      : ""
-                  } `;
+                  // BRIGHT SPOTLIGHT TILE: Normal vibrant theme tile!
+                  cellClass += `${themeStyle.cellDefault} ${themeStyle.cellHover} `;
+                  if (isFogActive && isFogEngaged) {
+                    if (isFocalCenter) {
+                      cellClass +=
+                        "ring-2 ring-white shadow-[0_0_15px_rgba(255,255,255,0.7)] scale-105 z-20 ";
+                    } else {
+                      cellClass +=
+                        "ring-1 ring-white/50 shadow-[0_0_8px_rgba(255,255,255,0.3)] ";
+                    }
+                  }
                 }
 
                 return (
@@ -1008,7 +1014,7 @@ export const CampaignGameBoard: React.FC = () => {
                   "bg-amber-500/15 border-amber-500/35 text-amber-300 tracking-wider";
               } else if (isFogActive) {
                 badgeStyle =
-                  "bg-indigo-500/15 border-indigo-500/30 text-indigo-300";
+                  "bg-black/20 border-white/10 text-current opacity-85";
               }
 
               return (

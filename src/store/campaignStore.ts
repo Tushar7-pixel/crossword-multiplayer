@@ -28,7 +28,7 @@ export interface LevelConfig {
     chapterTitle?: string;
 }
 
-export const PHASE_2_UNLOCK_STARS = 10;
+export const PHASE_2_UNLOCK_STARS = 1;
 const CAMPAIGN_STORAGE_KEY = 'crossword_offline_campaign_v1';
 const CAMPAIGN_USED_WORDS_KEY = 'crossword_campaign_used_words_v1';
 
