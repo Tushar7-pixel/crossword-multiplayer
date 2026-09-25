@@ -6,7 +6,7 @@ import {
   Copy,
   Link,
   Wifi,
-  WifiOff,
+  Map,
   UserMinus,
   Sparkles,
   Palette,
@@ -74,7 +74,7 @@ export const Lobby: React.FC<LobbyProps> = ({ network }) => {
   const activeFontKey = (localFont || font) as FontType;
   const fontStyle = FONTS[activeFontKey] || FONTS.hand;
 
-  const handleOffline = () => {
+  const handleCampaign = () => {
     setGameState({ status: "campaign-select" });
   };
 
@@ -431,11 +431,11 @@ export const Lobby: React.FC<LobbyProps> = ({ network }) => {
                 Host Game
               </button>
               <button
-                onClick={handleOffline}
+                onClick={handleCampaign}
                 style={{ fontFamily: fontStyle.fontFamily }}
                 className="bg-black/15 hover:bg-black/25 py-2.5 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-colors border border-black/15"
               >
-                <WifiOff size={16} /> Offline Mode
+                <Map size={16} /> Campaign Mode
               </button>
             </div>
 
