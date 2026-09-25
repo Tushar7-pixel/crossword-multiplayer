@@ -27,7 +27,6 @@ import {
 import { haptic } from "../../lib/haptics";
 import { soundFx } from "../../lib/audioFx";
 import { SoundToggle } from "../ui/SoundToggle";
-import { scrambleWord } from "../../lib/wordModifiers";
 
 interface BonusNotice {
   id: number;
@@ -70,19 +69,15 @@ export const CampaignGameBoard: React.FC = () => {
   const isPhase2 = levelConfig.phase === 2;
   const isHybrid = levelConfig.modifier === "hybrid";
 
-  const isAnagramActive =
-    levelConfig.modifier === "anagram" ||
-    (isHybrid &&
-      (activeLevel === 36 || activeLevel === 37 || activeLevel === 40));
-
+  // Fog active on Fog levels & Chapter 4 Gauntlet
   const isFogActive =
     levelConfig.modifier === "fog" ||
     (isHybrid && activeLevel >= 36 && activeLevel <= 40);
 
+  // Hazard active on Hazard levels & Chapter 4 Gauntlet
   const isHazardActive =
     levelConfig.modifier === "hazard" ||
-    (isHybrid &&
-      (activeLevel === 38 || activeLevel === 39 || activeLevel === 40));
+    (isHybrid && activeLevel >= 38 && activeLevel <= 40);
 
   const activeThemeKey = localTheme || theme;
   const themeStyle = THEMES[activeThemeKey] || THEMES.farm;
@@ -135,17 +130,6 @@ export const CampaignGameBoard: React.FC = () => {
     }, 1200);
     return () => clearTimeout(timer);
   }, [currentRound, activeLevel, isFogActive]);
-
-  // Anagram Scrambled Words Map
-  const scrambledMap = useMemo(() => {
-    if (!isAnagramActive) return {};
-    const map: Record<string, string> = {};
-    const keepEnds = activeLevel <= 23;
-    wordsToFind.forEach((word) => {
-      map[word] = scrambleWord(word, keepEnds);
-    });
-    return map;
-  }, [wordsToFind, isAnagramActive, activeLevel]);
 
   // Selection interaction
   const [startCell, setStartCell] = useState<CellCoord | null>(null);
@@ -208,12 +192,24 @@ export const CampaignGameBoard: React.FC = () => {
     .map((c) => board[c.y]?.[c.x] || "")
     .join("");
 
-  // Projects the light focal point ABOVE the finger so letters are never hidden
+  const boardSize = board.length || 10;
+
+  // Flashlight position logic: projects above finger, handles bottom row cleanly
   const getFlashlightFocalPoint = (cell: CellCoord) => {
-    if (cell.y <= 1) {
-      return { y: cell.y, x: cell.x };
+    // Top row: shine directly at top row
+    if (cell.y === 0) {
+      return { y: 0, x: cell.x };
     }
-    return { y: cell.y - 1.65, x: cell.x };
+    // Bottom row: center directly on the bottom row
+    if (cell.y >= boardSize - 1) {
+      return { y: boardSize - 1, x: cell.x };
+    }
+    // One row above bottom: shift slightly by 0.75 so bottom row stays reachable
+    if (cell.y === boardSize - 2) {
+      return { y: cell.y - 0.75, x: cell.x };
+    }
+    // Standard rows: project 1.6 rows directly above finger
+    return { y: cell.y - 1.6, x: cell.x };
   };
 
   const checkCellVisibility = (y: number, x: number) => {
@@ -225,7 +221,7 @@ export const CampaignGameBoard: React.FC = () => {
       if (isInspectMode) {
         const focal = getFlashlightFocalPoint(activeTouchCell);
         const dist = Math.hypot(x - focal.x, y - focal.y);
-        return dist <= (activeLevel >= 29 ? 1.45 : 1.85);
+        return dist <= (activeLevel >= 29 ? 1.5 : 1.9);
       } else {
         const dist = Math.hypot(x - activeTouchCell.x, y - activeTouchCell.y);
         return dist <= (activeLevel >= 29 ? 1.3 : 1.85);
@@ -234,6 +230,7 @@ export const CampaignGameBoard: React.FC = () => {
     return false;
   };
 
+  // Letters currently illuminated by the flashlight for the Scout HUD
   const scoutedLetters = useMemo(() => {
     if (!isFogActive || !isInspectMode || !activeTouchCell) return [];
     const focal = getFlashlightFocalPoint(activeTouchCell);
@@ -249,7 +246,7 @@ export const CampaignGameBoard: React.FC = () => {
       }
     }
     return letters.slice(0, 5);
-  }, [isFogActive, isInspectMode, activeTouchCell, board]);
+  }, [isFogActive, isInspectMode, activeTouchCell, board, boardSize]);
 
   const getCellFromPoint = (
     clientX: number,
@@ -581,7 +578,6 @@ export const CampaignGameBoard: React.FC = () => {
     activeTouchCell && isInspectMode
       ? getFlashlightFocalPoint(activeTouchCell)
       : null;
-  const boardSize = board.length || 10;
 
   return (
     <div
@@ -865,27 +861,29 @@ export const CampaignGameBoard: React.FC = () => {
             >
               <defs>
                 <radialGradient id="spotlightGlow" cx="50%" cy="50%" r="50%">
-                  <stop offset="0%" stopColor="#ffffff" stopOpacity="0.4" />
-                  <stop offset="60%" stopColor="#ffffff" stopOpacity="0.15" />
+                  <stop offset="0%" stopColor="#ffffff" stopOpacity="0.45" />
+                  <stop offset="60%" stopColor="#ffffff" stopOpacity="0.18" />
                   <stop offset="100%" stopColor="#ffffff" stopOpacity="0" />
                 </radialGradient>
               </defs>
 
-              {/* Upward beam cone projecting from touch to spotlight */}
-              <polygon
-                points={`
-                  ${activeTouchCell.x * 100 + 50},${activeTouchCell.y * 100 + 50} 
-                  ${focalPoint.x * 100 - 80},${focalPoint.y * 100 + 20} 
-                  ${focalPoint.x * 100 + 180},${focalPoint.y * 100 + 20}
-                `}
-                fill="url(#spotlightGlow)"
-              />
+              {/* Upward beam cone projecting from touch to spotlight (only when focal is above touch) */}
+              {focalPoint.y < activeTouchCell.y && (
+                <polygon
+                  points={`
+                    ${activeTouchCell.x * 100 + 50},${activeTouchCell.y * 100 + 50} 
+                    ${focalPoint.x * 100 - 80},${focalPoint.y * 100 + 20} 
+                    ${focalPoint.x * 100 + 180},${focalPoint.y * 100 + 20}
+                  `}
+                  fill="url(#spotlightGlow)"
+                />
+              )}
 
               {/* Radiant Circular Spotlight Halo */}
               <circle
                 cx={focalPoint.x * 100 + 50}
                 cy={focalPoint.y * 100 + 50}
-                r="135"
+                r="140"
                 fill="url(#spotlightGlow)"
               />
             </svg>
@@ -926,7 +924,7 @@ export const CampaignGameBoard: React.FC = () => {
                   cellClass +=
                     "!bg-emerald-500/80 !text-white line-through opacity-90 shadow-[0_0_8px_rgba(16,185,129,0.5)] ";
                 } else if (!isVisible) {
-                  // Cloaked in Dark Night: pitch-dark rounded square
+                  // Cloaked in Dark Night
                   cellClass +=
                     "!bg-slate-900/90 !border-slate-800/50 text-transparent opacity-20 select-none shadow-none ";
                 } else if (isHazard && !isDisarmed) {
@@ -981,13 +979,11 @@ export const CampaignGameBoard: React.FC = () => {
         >
           <div className="flex items-center justify-between text-[11px] font-black uppercase tracking-wider mb-2 opacity-75">
             <span>
-              {isAnagramActive
-                ? "Decipher the Words"
-                : isFogActive
-                  ? "Scout & Reveal Words"
-                  : isHazardActive
-                    ? "Disarm & Find Words"
-                    : "Words to Find"}
+              {isFogActive
+                ? "Scout & Reveal Words"
+                : isHazardActive
+                  ? "Disarm & Find Words"
+                  : "Words to Find"}
             </span>
             <span>
               {wordsFoundCount} / {wordsToFind.length} Found
@@ -998,8 +994,6 @@ export const CampaignGameBoard: React.FC = () => {
             {wordsToFind.map((word) => {
               const isFound = foundWords[word];
               const isGolden = currentRound === 3 && word === goldenWord;
-              const displayWord =
-                isFound || !isAnagramActive ? word : scrambledMap[word] || word;
 
               let badgeStyle =
                 "bg-black/20 border-black/10 text-current hover:bg-black/30";
@@ -1009,9 +1003,6 @@ export const CampaignGameBoard: React.FC = () => {
               } else if (isFound) {
                 badgeStyle =
                   "bg-emerald-500/20 text-emerald-600 dark:text-emerald-300 line-through border-emerald-500/30 opacity-70";
-              } else if (isAnagramActive) {
-                badgeStyle =
-                  "bg-amber-500/15 border-amber-500/35 text-amber-300 tracking-wider";
               } else if (isFogActive) {
                 badgeStyle =
                   "bg-black/20 border-white/10 text-current opacity-85";
@@ -1034,11 +1025,7 @@ export const CampaignGameBoard: React.FC = () => {
                       className="text-amber-950 fill-amber-950 shrink-0"
                     />
                   )}
-                  <span
-                    className={!isFound && isAnagramActive ? "font-mono" : ""}
-                  >
-                    {displayWord}
-                  </span>
+                  <span>{word}</span>
                   {isGolden && !isFound && (
                     <span className="text-[9px] bg-amber-950/20 text-amber-950 px-1 rounded font-black">
                       {isPhase2 ? "GOLDEN" : "+15s"}
