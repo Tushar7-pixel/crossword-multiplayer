@@ -21,6 +21,8 @@ import {
   Zap,
   Trophy,
   Award,
+  Search,
+  Pencil,
 } from "lucide-react";
 import { haptic } from "../../lib/haptics";
 import { soundFx } from "../../lib/audioFx";
@@ -33,7 +35,6 @@ interface BonusNotice {
   type: "base" | "streak" | "golden" | "hazard" | "disarm";
 }
 
-// Generates 2-3 randomized hazard tile coordinates
 const createHazardsForRound = (
   gridSize: number,
   count: number = 3,
@@ -69,7 +70,6 @@ export const CampaignGameBoard: React.FC = () => {
   const isPhase2 = levelConfig.phase === 2;
   const isHybrid = levelConfig.modifier === "hybrid";
 
-  // Hybrid sub-rules for Chapter 4 (Levels 36-40)
   const isAnagramActive =
     levelConfig.modifier === "anagram" ||
     (isHybrid &&
@@ -114,26 +114,29 @@ export const CampaignGameBoard: React.FC = () => {
   const [isShocked, setIsShocked] = useState(false);
   const [shockCount, setShockCount] = useState(0);
 
-  // Fog of War States
+  // Fog of War States & Scout Mode
   const [isFogEngaged, setIsFogEngaged] = useState(false);
+  const [isInspectMode, setIsInspectMode] = useState(false);
   const [activeTouchCell, setActiveTouchCell] = useState<CellCoord | null>(
     null,
   );
-  const fogRadius = activeLevel >= 29 ? 1.3 : 1.85;
 
+  // Default to Flashlight Scout mode when starting a Fog round
   useEffect(() => {
     if (!isFogActive) {
       setIsFogEngaged(false);
+      setIsInspectMode(false);
       return;
     }
     setIsFogEngaged(false);
+    setIsInspectMode(true);
     const timer = setTimeout(() => {
       setIsFogEngaged(true);
     }, 1200);
     return () => clearTimeout(timer);
   }, [currentRound, activeLevel, isFogActive]);
 
-  // Anagram Scrambled Words Map (Levels 21-25 & Gauntlet)
+  // Anagram Scrambled Words Map
   const scrambledMap = useMemo(() => {
     if (!isAnagramActive) return {};
     const map: Record<string, string> = {};
@@ -149,37 +152,28 @@ export const CampaignGameBoard: React.FC = () => {
   const [selectionCoords, setSelectionCoords] = useState<CellCoord[]>([]);
   const [isDragging, setIsDragging] = useState(false);
 
-  // Time & Streak metrics
+  // Time & Metrics
   const [elapsedTime, setElapsedTime] = useState(0);
   const [isLevelFinished, setIsLevelFinished] = useState(false);
   const [earnedStars, setEarnedStars] = useState(1);
-
-  // Streak & Notification State
   const [streakCount, setStreakCount] = useState(0);
   const lastFoundTimeRef = useRef<number | null>(null);
   const [bonusNotice, setBonusNotice] = useState<BonusNotice | null>(null);
 
-  // Active Timer
   useEffect(() => {
     if (isLevelFinished) return;
-
     const interval = window.setInterval(() => {
       setElapsedTime((prev) => prev + 1);
     }, 1000);
-
     return () => clearInterval(interval);
   }, [isLevelFinished]);
 
   useEffect(() => {
     if (!bonusNotice) return;
-    const timer = window.setTimeout(() => {
-      setBonusNotice(null);
-    }, 2200);
+    const timer = window.setTimeout(() => setBonusNotice(null), 2200);
     return () => clearTimeout(timer);
   }, [bonusNotice]);
 
-  // Phase 1: Eligible stars depend on elapsed time
-  // Phase 2: Fully untimed, stars depend on avoidance of Voltage Shocks
   const currentEligibleStars = isPhase2
     ? isHazardActive
       ? Math.max(1, 3 - shockCount)
@@ -190,7 +184,6 @@ export const CampaignGameBoard: React.FC = () => {
         ? 2
         : 1;
 
-  // Phase 1 countdown metrics
   const remainingTime = Math.max(0, levelConfig.maxBudget - elapsedTime);
   const barPercent = Math.min(
     100,
@@ -205,7 +198,6 @@ export const CampaignGameBoard: React.FC = () => {
       levelConfig.maxBudget) *
     100;
 
-  // Phase 2 round mastery percentage
   const wordsFoundCount = Object.keys(foundWords).length;
   const roundProgressPercent = Math.round(
     ((currentRound - 1) / 3) * 100 +
@@ -216,18 +208,68 @@ export const CampaignGameBoard: React.FC = () => {
     .map((c) => board[c.y]?.[c.x] || "")
     .join("");
 
+  // Projects the light focal point ABOVE the finger so fingers never cover the letters
+  const getFlashlightFocalPoint = (cell: CellCoord) => {
+    if (cell.y <= 1) {
+      // Near top of grid: illuminate around and slightly below
+      return { y: cell.y, x: cell.x };
+    }
+    // Normal: illuminate 1.65 rows directly above finger
+    return { y: cell.y - 1.65, x: cell.x };
+  };
+
   const checkCellVisibility = (y: number, x: number) => {
     if (!isFogActive || !isFogEngaged) return true;
     if (foundCells[`${y}-${x}`]) return true;
     if (selectionCoords.some((c) => c.y === y && c.x === x)) return true;
+
     if (activeTouchCell) {
-      const dist = Math.hypot(x - activeTouchCell.x, y - activeTouchCell.y);
-      return dist <= fogRadius;
+      if (isInspectMode) {
+        const focal = getFlashlightFocalPoint(activeTouchCell);
+        const dist = Math.hypot(x - focal.x, y - focal.y);
+        return dist <= (activeLevel >= 29 ? 1.45 : 1.85);
+      } else {
+        const dist = Math.hypot(x - activeTouchCell.x, y - activeTouchCell.y);
+        return dist <= (activeLevel >= 29 ? 1.3 : 1.85);
+      }
     }
     return false;
   };
 
+  // Letters currently illuminated by the flashlight for the Scout HUD
+  const scoutedLetters = useMemo(() => {
+    if (!isFogActive || !isInspectMode || !activeTouchCell) return [];
+    const focal = getFlashlightFocalPoint(activeTouchCell);
+    const letters: string[] = [];
+
+    for (let dy = -1; dy <= 1; dy++) {
+      for (let dx = -1; dx <= 1; dx++) {
+        const py = Math.round(focal.y) + dy;
+        const px = Math.round(focal.x) + dx;
+        if (board[py]?.[px]) {
+          letters.push(board[py][px]);
+        }
+      }
+    }
+    return letters.slice(0, 5);
+  }, [isFogActive, isInspectMode, activeTouchCell, board]);
+
+  const getCellFromPoint = (
+    clientX: number,
+    clientY: number,
+  ): CellCoord | null => {
+    const target = document.elementFromPoint(clientX, clientY);
+    const cellEl = target?.closest("[data-cell]");
+    if (cellEl) {
+      const y = parseInt(cellEl.getAttribute("data-y")!, 10);
+      const x = parseInt(cellEl.getAttribute("data-x")!, 10);
+      return { y, x };
+    }
+    return null;
+  };
+
   const handleSelectStart = (y: number, x: number) => {
+    if (isFogActive && isInspectMode) return;
     setIsDragging(true);
     const initial = { y, x };
     setStartCell(initial);
@@ -236,6 +278,11 @@ export const CampaignGameBoard: React.FC = () => {
   };
 
   const handleSelectMove = (y: number, x: number) => {
+    if (isFogActive && isInspectMode) {
+      setActiveTouchCell({ y, x });
+      return;
+    }
+
     setActiveTouchCell({ y, x });
     if (!isDragging || !startCell) return;
 
@@ -269,6 +316,11 @@ export const CampaignGameBoard: React.FC = () => {
   };
 
   const handleSelectEnd = () => {
+    if (isFogActive && isInspectMode) {
+      setActiveTouchCell(null);
+      return;
+    }
+
     setActiveTouchCell(null);
     if (!isDragging) return;
     setIsDragging(false);
@@ -276,7 +328,6 @@ export const CampaignGameBoard: React.FC = () => {
     const isMatch =
       wordsToFind.includes(currentWord) && !foundWords[currentWord];
 
-    // Check if selection intersects any active, undisarmed hazard
     const touchedActiveHazards = selectionCoords
       .map((c) => `${c.y}-${c.x}`)
       .filter((k) => hazardCells[k] && !disarmedHazards[k]);
@@ -285,7 +336,6 @@ export const CampaignGameBoard: React.FC = () => {
       const now = Date.now();
       const isGolden = currentRound === 3 && currentWord === goldenWord;
 
-      // Handle streaks
       let currentStreak = 1;
       let streakBonus = 0;
       if (lastFoundTimeRef.current && now - lastFoundTimeRef.current <= 7000) {
@@ -295,7 +345,6 @@ export const CampaignGameBoard: React.FC = () => {
       setStreakCount(currentStreak);
       lastFoundTimeRef.current = now;
 
-      // Disarm hazard tiles if routed through them
       if (touchedActiveHazards.length > 0) {
         const updated = { ...disarmedHazards };
         touchedActiveHazards.forEach((k) => {
@@ -306,7 +355,6 @@ export const CampaignGameBoard: React.FC = () => {
         soundFx.playVoltageDisarm();
       }
 
-      // Time credits only apply to Phase 1 countdown
       if (!isPhase2) {
         const secondsCredited = 5 + streakBonus + (isGolden ? 15 : 0);
         setElapsedTime((prev) => Math.max(0, prev - secondsCredited));
@@ -320,7 +368,6 @@ export const CampaignGameBoard: React.FC = () => {
         soundFx.playWordFound();
       }
 
-      // Notification banners
       if (touchedActiveHazards.length > 0) {
         setBonusNotice({
           id: Date.now(),
@@ -385,7 +432,6 @@ export const CampaignGameBoard: React.FC = () => {
           setFoundCells({});
           lastFoundTimeRef.current = null;
         } else {
-          // Pass currentEligibleStars so shock penalties persist correctly
           const stars = saveLevelResult(
             activeLevel,
             elapsedTime,
@@ -402,7 +448,6 @@ export const CampaignGameBoard: React.FC = () => {
         }
       }
     } else if (touchedActiveHazards.length > 0) {
-      // Voltage Hazard Short Circuit: Streak Lost & Star Rating Reduced!
       const newShockCount = shockCount + 1;
       setStreakCount(0);
       setShockCount(newShockCount);
@@ -430,26 +475,37 @@ export const CampaignGameBoard: React.FC = () => {
   const handleTouchStart = (e: React.TouchEvent) => {
     const touch = e.touches[0];
     if (!touch) return;
-    const target = document.elementFromPoint(touch.clientX, touch.clientY);
-    const cellEl = target?.closest("[data-cell]");
-    if (cellEl) {
-      const y = parseInt(cellEl.getAttribute("data-y")!, 10);
-      const x = parseInt(cellEl.getAttribute("data-x")!, 10);
-      handleSelectStart(y, x);
+    const directCell = getCellFromPoint(touch.clientX, touch.clientY);
+    if (!directCell) return;
+
+    if (isFogActive && isInspectMode) {
+      setActiveTouchCell(directCell);
+      haptic.tick();
+      return;
     }
+
+    handleSelectStart(directCell.y, directCell.x);
   };
 
   const handleTouchMove = (e: React.TouchEvent) => {
-    if (!isDragging) return;
     const touch = e.touches[0];
     if (!touch) return;
-    const target = document.elementFromPoint(touch.clientX, touch.clientY);
-    const cellEl = target?.closest("[data-cell]");
-    if (cellEl) {
-      const y = parseInt(cellEl.getAttribute("data-y")!, 10);
-      const x = parseInt(cellEl.getAttribute("data-x")!, 10);
-      handleSelectMove(y, x);
+    const directCell = getCellFromPoint(touch.clientX, touch.clientY);
+    if (!directCell) return;
+
+    if (isFogActive && isInspectMode) {
+      if (
+        directCell.y !== activeTouchCell?.y ||
+        directCell.x !== activeTouchCell?.x
+      ) {
+        setActiveTouchCell(directCell);
+        haptic.tick();
+      }
+      return;
     }
+
+    if (!isDragging) return;
+    handleSelectMove(directCell.y, directCell.x);
   };
 
   const restartCurrentLevel = () => {
@@ -524,6 +580,12 @@ export const CampaignGameBoard: React.FC = () => {
     }
   };
 
+  const focalPoint =
+    activeTouchCell && isInspectMode
+      ? getFlashlightFocalPoint(activeTouchCell)
+      : null;
+  const boardSize = board.length || 10;
+
   return (
     <div
       className={`h-[100dvh] max-h-[100dvh] w-full flex flex-col justify-evenly items-center overflow-hidden ${
@@ -533,7 +595,7 @@ export const CampaignGameBoard: React.FC = () => {
       onMouseUp={handleSelectEnd}
       onMouseLeave={handleSelectEnd}
     >
-      {/* FLOATING PROMINENT BONUS NOTICE */}
+      {/* BONUS NOTIFICATION BANNER */}
       {bonusNotice && (
         <div
           key={bonusNotice.id}
@@ -562,7 +624,7 @@ export const CampaignGameBoard: React.FC = () => {
         </div>
       )}
 
-      {/* SECTION 1: Header & Status Header */}
+      {/* SECTION 1: Top Navigation & Status */}
       <div className="w-full max-w-md flex flex-col items-center shrink-0">
         <div className="w-full flex items-center justify-between mb-1.5 px-0.5">
           <button
@@ -668,12 +730,10 @@ export const CampaignGameBoard: React.FC = () => {
                 }`}
                 style={{ width: `${barPercent}%` }}
               />
-
               <div
                 className="absolute top-0 bottom-0 w-1 bg-rose-500/90 z-20"
                 style={{ left: `${lossStar3Marker}%` }}
               />
-
               <div
                 className="absolute top-0 bottom-0 w-1 bg-rose-500/90 z-20"
                 style={{ left: `${lossStar2Marker}%` }}
@@ -708,32 +768,134 @@ export const CampaignGameBoard: React.FC = () => {
         </div>
       </div>
 
-      {/* SECTION 2: Current Word Preview + Grid Board */}
+      {/* SECTION 2: Board & Flashlight Controls */}
       <div className="w-full max-w-md flex flex-col items-center shrink-0">
-        <div
-          className={`h-7 flex items-center justify-center text-lg sm:text-xl font-black tracking-widest mb-1.5 ${themeStyle.titleColor}`}
-        >
-          {currentWord ||
-            (isFogActive && isFogEngaged
-              ? "EXPLORE THE MIST"
-              : isHazardActive
-                ? "AVOID VOLTAGE SHOCKS"
-                : "FIND THE WORDS")}
-        </div>
+        {isFogActive ? (
+          <div className="w-full flex items-center justify-between gap-2 mb-1 px-1">
+            <div className="flex p-0.5 rounded-xl bg-black/40 border border-white/10 shadow-inner">
+              <button
+                onClick={() => {
+                  setIsInspectMode(true);
+                  setActiveTouchCell(null);
+                  setSelectionCoords([]);
+                  haptic.tick();
+                }}
+                className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-black transition-all ${
+                  isInspectMode
+                    ? "bg-amber-400 text-slate-950 shadow-md scale-102"
+                    : "text-white/60 hover:text-white"
+                }`}
+              >
+                <Search size={13} />
+                <span>🔦 Scout</span>
+              </button>
 
+              <button
+                onClick={() => {
+                  setIsInspectMode(false);
+                  setActiveTouchCell(null);
+                  haptic.tick();
+                }}
+                className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-black transition-all ${
+                  !isInspectMode
+                    ? "bg-emerald-500 text-slate-950 shadow-md scale-102"
+                    : "text-white/60 hover:text-white"
+                }`}
+              >
+                <Pencil size={13} />
+                <span>✏️ Draw</span>
+              </button>
+            </div>
+
+            <span className="text-[10px] font-black uppercase tracking-wider text-amber-300 truncate">
+              {isInspectMode
+                ? "Light projects above finger"
+                : "Swipe to connect"}
+            </span>
+          </div>
+        ) : (
+          <div
+            className={`h-7 flex items-center justify-center text-lg sm:text-xl font-black tracking-widest mb-1 ${themeStyle.titleColor}`}
+          >
+            {currentWord ||
+              (isHazardActive ? "AVOID VOLTAGE SHOCKS" : "FIND THE WORDS")}
+          </div>
+        )}
+
+        {/* Live Scout Readout HUD */}
+        {isFogActive && (
+          <div className="h-6 flex items-center justify-center text-xs sm:text-sm font-black tracking-widest mb-1 text-center">
+            {isInspectMode ? (
+              activeTouchCell && scoutedLetters.length > 0 ? (
+                <div className="flex items-center gap-1 bg-amber-400/20 border border-amber-400/40 px-3 py-0.5 rounded-full text-amber-300 animate-in fade-in">
+                  <Search size={11} />
+                  <span>BEAM:</span>
+                  <span className="font-mono text-white tracking-widest font-black text-sm">
+                    {scoutedLetters.join(" ")}
+                  </span>
+                </div>
+              ) : (
+                <span className="opacity-60 text-[11px] uppercase tracking-wider">
+                  Touch & drag to shine beam above finger
+                </span>
+              )
+            ) : (
+              <span className={`font-mono text-base ${themeStyle.titleColor}`}>
+                {currentWord || "DRAG TO SELECT WORD"}
+              </span>
+            )}
+          </div>
+        )}
+
+        {/* Board Container */}
         <div
           onTouchStart={handleTouchStart}
           onTouchMove={handleTouchMove}
           onTouchEnd={handleSelectEnd}
-          className={`relative aspect-square w-[min(94vw,50vh)] max-w-[420px] ${
-            isFogActive ? "bg-slate-950/90" : themeStyle.cardBg
-          } p-2 sm:p-3 rounded-2xl sm:rounded-3xl border-2 ${themeStyle.border} select-none flex items-center justify-center shadow-lg transition-colors duration-500`}
+          className={`relative aspect-square w-[min(94vw,48vh)] max-w-[420px] ${
+            isFogActive ? "bg-slate-950/95" : themeStyle.cardBg
+          } p-2 sm:p-3 rounded-2xl sm:rounded-3xl border-2 ${themeStyle.border} select-none flex items-center justify-center shadow-lg transition-colors duration-500 overflow-hidden`}
         >
+          {/* Visual Flashlight Beam Cone SVG */}
+          {isFogActive && isInspectMode && activeTouchCell && focalPoint && (
+            <svg
+              className="absolute inset-0 w-full h-full pointer-events-none z-20"
+              viewBox={`0 0 ${boardSize * 100} ${boardSize * 100}`}
+            >
+              <defs>
+                <radialGradient id="flashlightGlow" cx="50%" cy="50%" r="50%">
+                  <stop offset="0%" stopColor="#fbbf24" stopOpacity="0.45" />
+                  <stop offset="60%" stopColor="#f59e0b" stopOpacity="0.2" />
+                  <stop offset="100%" stopColor="#d97706" stopOpacity="0" />
+                </radialGradient>
+              </defs>
+
+              {/* Upward Flashlight Beam Polygon */}
+              <polygon
+                points={`
+                  ${activeTouchCell.x * 100 + 50},${activeTouchCell.y * 100 + 50} 
+                  ${focalPoint.x * 100 - 90},${focalPoint.y * 100} 
+                  ${focalPoint.x * 100 + 190},${focalPoint.y * 100}
+                `}
+                fill="url(#flashlightGlow)"
+              />
+
+              {/* Radiant Spotlight Halo above finger */}
+              <circle
+                cx={focalPoint.x * 100 + 50}
+                cy={focalPoint.y * 100 + 50}
+                r="130"
+                fill="url(#flashlightGlow)"
+              />
+            </svg>
+          )}
+
+          {/* Board Grid Cells */}
           <div
             className="grid w-full h-full gap-1 relative z-10"
             style={{
-              gridTemplateColumns: `repeat(${board.length || 10}, minmax(0, 1fr))`,
-              gridTemplateRows: `repeat(${board.length || 10}, minmax(0, 1fr))`,
+              gridTemplateColumns: `repeat(${boardSize}, minmax(0, 1fr))`,
+              gridTemplateRows: `repeat(${boardSize}, minmax(0, 1fr))`,
             }}
           >
             {board.map((row, y) =>
@@ -748,6 +910,12 @@ export const CampaignGameBoard: React.FC = () => {
                 const isHazard = hazardCells[cellKey];
                 const isDisarmed = disarmedHazards[cellKey];
 
+                const isFocalCenter =
+                  isInspectMode &&
+                  focalPoint &&
+                  Math.round(focalPoint.y) === y &&
+                  Math.round(focalPoint.x) === x;
+
                 let cellClass = `relative w-full h-full flex items-center justify-center rounded-lg font-black text-[clamp(16px,4.5vw,23px)] uppercase cursor-pointer transition-all duration-150 `;
 
                 if (isSelected) {
@@ -757,21 +925,20 @@ export const CampaignGameBoard: React.FC = () => {
                   cellClass +=
                     "!bg-emerald-500/80 !text-white line-through opacity-90 shadow-[0_0_8px_rgba(16,185,129,0.5)] ";
                 } else if (!isVisible) {
-                  // Cloaked Fog Tile: dark silhouette
                   cellClass +=
-                    "bg-slate-900/90 border border-slate-800 text-transparent opacity-40 shadow-none ";
+                    "bg-slate-900/90 border border-slate-800 text-transparent opacity-25 shadow-none ";
                 } else if (isHazard && !isDisarmed) {
-                  // Active Voltage Hazard Tile
                   cellClass +=
                     "bg-amber-500/20 border-2 border-amber-400/90 text-amber-200 shadow-[0_0_10px_rgba(245,158,11,0.5)] animate-pulse ";
                 } else if (isHazard && isDisarmed) {
-                  // Disarmed Hazard Tile
                   cellClass +=
                     "bg-cyan-500/20 border border-cyan-400/60 text-cyan-200 opacity-80 ";
                 } else {
                   cellClass += `${themeStyle.cellDefault} ${themeStyle.cellHover} ${
                     isFogActive && isFogEngaged
-                      ? "ring-1 ring-amber-300/40 bg-amber-500/10 shadow-[0_0_6px_rgba(251,191,36,0.3)]"
+                      ? isFocalCenter
+                        ? "ring-2 ring-amber-300 !bg-amber-400/35 text-amber-100 shadow-[0_0_12px_rgba(251,191,36,0.7)] scale-105 z-20"
+                        : "ring-1 ring-amber-300/40 bg-amber-500/10 shadow-[0_0_6px_rgba(251,191,36,0.3)] text-amber-200"
                       : ""
                   } `;
                 }
@@ -811,7 +978,7 @@ export const CampaignGameBoard: React.FC = () => {
               {isAnagramActive
                 ? "Decipher the Words"
                 : isFogActive
-                  ? "Uncover in the Fog"
+                  ? "Scout & Reveal Words"
                   : isHazardActive
                     ? "Disarm & Find Words"
                     : "Words to Find"}
@@ -889,7 +1056,6 @@ export const CampaignGameBoard: React.FC = () => {
             } p-6 sm:p-8 rounded-3xl max-w-sm w-full text-center shadow-2xl animate-in zoom-in-95`}
           >
             {activeLevel === 40 ? (
-              /* GRAND CAMPAIGN FINALE PODIUM */
               <>
                 <div className="flex justify-center mb-2">
                   <div className="p-3 bg-amber-500/20 rounded-full border-2 border-amber-400 animate-bounce">
@@ -930,7 +1096,6 @@ export const CampaignGameBoard: React.FC = () => {
                 </div>
               </>
             ) : (
-              /* STANDARD LEVEL COMPLETE MODAL */
               <>
                 <h2
                   className={`text-2xl font-black mb-1 ${themeStyle.titleColor}`}
